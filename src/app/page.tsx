@@ -486,7 +486,7 @@ export default function Home() {
   }
 
   if (!authed) {
-    return <PasswordScreen onSuccess={() => { setAuthed(true); setAuthed_(true); }} />;
+    return <PasswordScreen onSuccess={() => { setAuthed(); setAuthed_(true); }} />;
   }
 
   return <LandingPage />;
