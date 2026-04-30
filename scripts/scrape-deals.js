@@ -162,7 +162,7 @@ function deduplicateDeals(deals) {
 }
 
 async function main() {
-  console.log('[scrape-deals] Starting...');
+  console.log('[scrape-deals] Starting... v2 sources:', SOURCES.map(s => s.name + ':' + s.url.split('/').slice(-2, -1)[0]).join(', '));
   console.log('[scrape-deals] Env keys present:', Object.keys(process.env).filter(k => k.includes('SUPABASE') || k.includes('ANTHROPIC')));
 
   if (!process.env.ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY is not set');
