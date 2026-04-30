@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
     const supabase = getServiceSupabase();
 
     // Step 3 — Deduplicate against existing wardrobe items per category
-    const categories = [...new Set(garments.map(g => g.category))];
+    const categories = Array.from(new Set(garments.map(g => g.category)));
     const { data: existingItems } = await supabase
       .from('wardrobe_items')
       .select('id, category, subcategory, colours')
