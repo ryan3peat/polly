@@ -139,15 +139,15 @@ async function main() {
 
   if (!process.env.ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY is not set');
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL) throw new Error('NEXT_PUBLIC_SUPABASE_URL is not set');
-  if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) throw new Error('NEXT_PUBLIC_SUPABASE_ANON_KEY is not set');
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) throw new Error('SUPABASE_SERVICE_ROLE_KEY is not set');
 
   anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+  supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
   // Wipe all existing deals for a clean slate on every run
   const { error: deleteError } = await supabase.from('deals').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-  if (deleteError) console.error('[scrape-deals] Delete error:', deleteError);
-  else console.log('[scrape-deals] Cleared existing deals');
+  if (deleteError) throw new Error(`Delete failed: ${deleteError.message} — ${deleteError.hint ?? ''}`);
+  console.log('[scrape-deals] Cleared existing deals');
 
   const browser = await chromium.launch({ headless: true });
 
