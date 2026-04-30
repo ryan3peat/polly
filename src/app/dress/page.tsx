@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Camera, Loader2, Shirt } from 'lucide-react';
+import { Camera, ImageIcon, Loader2, Shirt } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 // ── Types ────────────────────────────────────────────────────────
@@ -155,7 +155,8 @@ function WardrobeCard({ item, index }: { item: WardrobeItem; index: number }) {
 
 // ── LOG TAB ──────────────────────────────────────────────────────
 function LogTab() {
-  const fileRef = useRef<HTMLInputElement>(null);
+  const cameraRef  = useRef<HTMLInputElement>(null);
+  const libraryRef = useRef<HTMLInputElement>(null);
   const [previewUrl, setPreviewUrl]   = useState<string | null>(null);
   const [file, setFile]               = useState<File | null>(null);
   const [uploading, setUploading]     = useState(false);
@@ -168,8 +169,7 @@ function LogTab() {
     setFile(f);
     setSuccess(null);
     setError(null);
-    const url = URL.createObjectURL(f);
-    setPreviewUrl(url);
+    setPreviewUrl(URL.createObjectURL(f));
   };
 
   const handleLog = async () => {
@@ -209,7 +209,8 @@ function LogTab() {
         setPreviewUrl(null);
         setFile(null);
         setSuccess(null);
-        if (fileRef.current) fileRef.current.value = '';
+        if (cameraRef.current)  cameraRef.current.value  = '';
+        if (libraryRef.current) libraryRef.current.value = '';
       }, 3000);
 
     } catch (err) {
@@ -221,8 +222,17 @@ function LogTab() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* Hidden inputs — camera and library */}
       <input
-        ref={fileRef}
+        ref={cameraRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        style={{ display: 'none' }}
+        onChange={handleFileChange}
+      />
+      <input
+        ref={libraryRef}
         type="file"
         accept="image/*"
         style={{ display: 'none' }}
@@ -231,27 +241,50 @@ function LogTab() {
 
       {/* Upload area */}
       {!previewUrl ? (
-        <button
-          onClick={() => fileRef.current?.click()}
-          style={{
-            width: '100%', border: '1.5px dashed #EDD9DB', borderRadius: 16,
-            padding: '32px 20px', background: '#FFFFFF',
-            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
-            cursor: 'pointer',
-          }}
-        >
-          <Camera size={28} color="#C9848A" strokeWidth={1.5} />
+        <div style={{
+          border: '1.5px dashed #EDD9DB', borderRadius: 16,
+          padding: '24px 20px', background: '#FFFFFF',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16,
+        }}>
           <span style={{
             fontFamily: "'DM Sans', sans-serif", fontStyle: 'italic',
             fontSize: 13, color: '#7A7170',
           }}>
-            Upload today&apos;s outfit photo
+            Add today&apos;s outfit
           </span>
-        </button>
+          <div style={{ display: 'flex', gap: 10, width: '100%' }}>
+            <button
+              onClick={() => cameraRef.current?.click()}
+              style={{
+                flex: 1, height: 52, borderRadius: 12, border: '1px solid #EDD9DB',
+                background: '#FAF7F4', cursor: 'pointer',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6,
+              }}
+            >
+              <Camera size={20} color="#C9848A" strokeWidth={1.5} />
+              <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 11, color: '#7A7170' }}>
+                Take photo
+              </span>
+            </button>
+            <button
+              onClick={() => libraryRef.current?.click()}
+              style={{
+                flex: 1, height: 52, borderRadius: 12, border: '1px solid #EDD9DB',
+                background: '#FAF7F4', cursor: 'pointer',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6,
+              }}
+            >
+              <ImageIcon size={20} color="#C9848A" strokeWidth={1.5} />
+              <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 11, color: '#7A7170' }}>
+                Choose photo
+              </span>
+            </button>
+          </div>
+        </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div
-            onClick={() => fileRef.current?.click()}
+            onClick={() => libraryRef.current?.click()}
             style={{ cursor: 'pointer', borderRadius: 12, overflow: 'hidden', maxHeight: 300 }}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
