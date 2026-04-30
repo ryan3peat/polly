@@ -180,11 +180,10 @@ function LogTab() {
 
     try {
       // Upload to Supabase storage
-      const ext = file.name.split('.').pop() ?? 'jpg';
-      const path = `outfit-${Date.now()}.${ext}`;
+      const path = `${Date.now()}-${file.name.replace(/\s/g, '-')}`;
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('wardrobe-photos')
-        .upload(path, file, { contentType: file.type, upsert: false });
+        .upload(path, file, { contentType: file.type, upsert: true });
 
       if (uploadError) throw new Error(uploadError.message);
 
