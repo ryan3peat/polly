@@ -1,0 +1,56 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400;1,500&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --dusty-rose: #C9848A;
+  --blush: #F2D4D7;
+  --champagne-gold: #C4A35A;
+  --ivory: #FAF7F4;
+  --surface: #FFFFFF;
+  --charcoal: #2A2A2A;
+  --warm-grey: #7A7170;
+  --petal: #EDD9DB;
+  --rose: #C9848A;
+  --gold: #C4A35A;
+  --hairline: #EDD9DB;
+  --charcoal-soft: #5A5A5A;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  height: 100%;
+  overflow-x: hidden;
+  background: #E8E2DC; /* visible desktop gutter colour */
+  font-family: 'DM Sans', system-ui, sans-serif;
+  color: var(--charcoal);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Skeleton pulse */
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+.skeleton-pulse {
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+}
+
+/* Card press tactile feedback — works on touch & mouse */
+.press-card {
+  cursor: pointer;
+  transition: transform 80ms ease;
+}
+.press-card:active {
+  transform: scale(0.98);
+}

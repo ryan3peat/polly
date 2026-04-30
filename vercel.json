@@ -1,0 +1,5 @@
+{
+  "functions": {
+    "src/app/api/deals/refresh-url/route.ts": { "maxDuration": 60 }
+  }
+}
