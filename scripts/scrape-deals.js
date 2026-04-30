@@ -12,8 +12,6 @@ const SOURCES = [
   { name: 'HSBC Red Hot Offers', url: 'https://www.redhotoffers.hsbc.com.hk/en/latest-offers/red-hot-dining-special/2026-q2-dining/western-cuisine/', category: 'Dining' },
   { name: 'HSBC Red Hot Offers', url: 'https://www.redhotoffers.hsbc.com.hk/en/latest-offers/red-hot-dining-special/2026-q2-dining/japanese-and-asian-cuisine/', category: 'Dining' },
   { name: 'HSBC Red Hot Offers', url: 'https://www.redhotoffers.hsbc.com.hk/en/latest-offers/red-hot-dining-special/2026-q2-dining/chinese-cuisine/', category: 'Dining' },
-  { name: 'DiningCity HK', url: 'https://restaurantweek.diningcity.hk/lang/en/cities/hongkong/restaurants', category: 'Dining' },
-  { name: 'Cathay Pacific', url: 'https://www.cathaypacific.com/cx/en_HK/offers.html', category: 'Flights' },
 ];
 
 function buildPrompt(content, sourceUrl, category) {
