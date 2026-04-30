@@ -9,12 +9,13 @@ let anthropic;
 let supabase;
 
 const SOURCES = [
-  { name: 'HSBC Red Hot Offers', url: 'https://www.redhotoffers.hsbc.com.hk/en/latest-offers/red-hot-dining-special/2026-q2-dining/western-cuisine/', category: 'Dining' },
-  { name: 'HSBC Red Hot Offers', url: 'https://www.redhotoffers.hsbc.com.hk/en/latest-offers/red-hot-dining-special/2026-q2-dining/japanese-and-asian-cuisine/', category: 'Dining' },
-  { name: 'HSBC Red Hot Offers', url: 'https://www.redhotoffers.hsbc.com.hk/en/latest-offers/red-hot-dining-special/2026-q2-dining/chinese-cuisine/', category: 'Dining' },
+  { name: 'HSBC Red Hot Offers', url: 'https://www.redhotoffers.hsbc.com.hk/en/latest-offers/red-hot-dining-special/2026-q2-dining/western-cuisine/', category: 'Dining', strict: true },
+  { name: 'HSBC Red Hot Offers', url: 'https://www.redhotoffers.hsbc.com.hk/en/latest-offers/red-hot-dining-special/2026-q2-dining/japanese-and-asian-cuisine/', category: 'Dining', strict: true },
+  { name: 'HSBC Red Hot Offers', url: 'https://www.redhotoffers.hsbc.com.hk/en/latest-offers/red-hot-dining-special/2026-q2-dining/chinese-cuisine/', category: 'Dining', strict: true },
+  { name: 'Cathay Dining', url: 'https://dining.cathaypacific.com/en_HK.html', category: 'Dining', strict: false },
 ];
 
-function buildPrompt(content, sourceUrl, category) {
+function buildStrictPrompt(content, sourceUrl, category) {
   return `You are curating high-value deals for a Hong Kong lifestyle app. Apply a STRICT quality filter — only extract deals that clearly meet at least one of these criteria:
 1. Buy 1 get 1 free (or equivalent: 2-for-1, complimentary dish/item of equal or greater value)
 2. Free bottle of wine or free drinks included with a meal
@@ -39,8 +40,34 @@ Return a JSON array only. If no deals qualify, return [].
 Page content (first 8000 chars): ${content.slice(0, 8000)}`;
 }
 
-// Post-filter: reject any percentage discount explicitly under 20%
-function passesDiscountFilter(saving) {
+function buildRelaxedPrompt(content, sourceUrl, category) {
+  return `You are curating dining deals for a Hong Kong lifestyle app targeting discerning diners. Extract deals that meet ANY of these criteria:
+1. Buy 1 get 1 free (or 2-for-1, complimentary dish)
+2. Free bottle of wine or complimentary drinks with a meal
+3. 20% off or more on total bill
+4. Special set menu or exclusive tasting menu available only through this programme (e.g. Asia Miles member exclusive, card-exclusive set menu, seasonal chef's menu not available to walk-ins)
+
+Rules:
+- Each deal MUST name a specific restaurant — no generic category headings
+- Include the set menu price if stated (e.g. "HK$688 per person")
+- Skip anything with no specific offer detail whatsoever
+- For set menus, the saving field should describe what's special: e.g. 'Exclusive 4-course set menu', 'Member-only set lunch at HK$488'
+
+For each qualifying deal, return a JSON object with exactly these fields:
+- title: string (restaurant name + deal type, max 12 words — e.g. "Amber: Exclusive 4-Course Tasting Menu for Members")
+- description: string (2-3 sentences: restaurant name, cuisine type, exact offer terms, price if stated, any restrictions)
+- saving: string (what makes it special — e.g. 'Exclusive set menu', 'Member-only price', 'Buy 1 get 1 free', '30% off')
+- expiry_date: string (end date as written, or 'Limited time')
+- booking_url: string (direct URL to deal if visible, otherwise: ${sourceUrl})
+- category: use exactly '${category}'
+
+Return a JSON array only. If nothing qualifies, return [].
+
+Page content (first 8000 chars): ${content.slice(0, 8000)}`;
+}
+
+// Post-filter for strict sources: reject percentage discounts under 20%
+function passesStrictFilter(saving) {
   const match = saving.match(/(\d+(?:\.\d+)?)\s*%/);
   if (match) {
     const pct = parseFloat(match[1]);
@@ -49,12 +76,16 @@ function passesDiscountFilter(saving) {
   return true;
 }
 
-async function extractDeals(content, sourceUrl, category, sourceName) {
+async function extractDeals(content, sourceUrl, category, sourceName, strict) {
+  const prompt = strict
+    ? buildStrictPrompt(content, sourceUrl, category)
+    : buildRelaxedPrompt(content, sourceUrl, category);
+
   const message = await anthropic.messages.create({
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 2048,
     system: 'You are a deals curator for Hong Kong. Return only valid JSON arrays, no markdown, no explanation.',
-    messages: [{ role: 'user', content: buildPrompt(content, sourceUrl, category) }],
+    messages: [{ role: 'user', content: prompt }],
   });
 
   const raw = message.content[0].type === 'text' ? message.content[0].text : '';
@@ -73,7 +104,7 @@ async function extractDeals(content, sourceUrl, category, sourceName) {
       typeof d.description === 'string' && d.description.trim() &&
       typeof d.saving === 'string' && d.saving.trim() &&
       d.saving !== 'Special offer' &&
-      passesDiscountFilter(String(d.saving))
+      (!strict || passesStrictFilter(String(d.saving)))
     )
     .map(d => ({
       title: String(d.title).trim(),
@@ -96,14 +127,13 @@ async function scrapeUrl(browser, url) {
   const page = await context.newPage();
 
   try {
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
-    await page.waitForTimeout(3000);
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await page.waitForTimeout(4000);
 
-    // Scroll to trigger lazy-loaded content (important for SPAs like DiningCity)
     await page.evaluate(async () => {
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < 6; i++) {
         window.scrollBy(0, window.innerHeight);
-        await new Promise(r => setTimeout(r, 600));
+        await new Promise(r => setTimeout(r, 700));
       }
       window.scrollTo(0, 0);
     });
@@ -142,7 +172,6 @@ async function main() {
   anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
-  // Wipe all existing deals for a clean slate on every run
   const { error: deleteError } = await supabase.from('deals').delete().neq('id', '00000000-0000-0000-0000-000000000000');
   if (deleteError) throw new Error(`Delete failed: ${deleteError.message} — ${deleteError.hint ?? ''}`);
   console.log('[scrape-deals] Cleared existing deals');
@@ -158,7 +187,7 @@ async function main() {
       const content = await scrapeUrl(browser, src.url);
       console.log(`[scrape-deals] Got ${content.length} chars`);
 
-      const deals = await extractDeals(content, src.url, src.category, src.name);
+      const deals = await extractDeals(content, src.url, src.category, src.name, src.strict);
       console.log(`[scrape-deals] Extracted ${deals.length} deals`);
       allDeals.push(...deals);
     } catch (err) {
