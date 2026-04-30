@@ -84,8 +84,8 @@ async function scrapeUrl(browser, url) {
   const page = await context.newPage();
 
   try {
-    await page.goto(url, { waitUntil: 'networkidle', timeout: 45000 });
-    await page.waitForTimeout(2000);
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
+    await page.waitForTimeout(3000);
 
     const text = await page.evaluate(() => {
       const remove = document.querySelectorAll('script, style, nav, footer, header, [aria-hidden="true"]');
@@ -139,10 +139,7 @@ async function main() {
   let inserted = 0;
   if (allDeals.length > 0) {
     const { data, error } = await supabase.from('deals').insert(allDeals).select('id');
-    if (error) {
-      console.error('[scrape-deals] Insert error:', error);
-      process.exit(1);
-    }
+    if (error) throw new Error(`Insert failed: ${error.message} — ${error.hint ?? ''}`);
     inserted = data?.length ?? 0;
   }
 
