@@ -54,7 +54,9 @@
       "Bash(git fetch *)",
       "Bash(git commit *)",
       "Bash(cp webfetch-1777539556544-y87hli.bin landing.html.gz)",
-      "Bash(gunzip -f landing.html.gz)"
+      "Bash(gunzip -f landing.html.gz)",
+      "mcp__2dc1bb30-aff4-4600-9d55-d091614669ff__list_teams",
+      "mcp__2dc1bb30-aff4-4600-9d55-d091614669ff__get_deployment_build_logs"
     ]
   }
 }

@@ -1,4 +1,17 @@
 {
+  "/_not-found/page": "app/_not-found/page.js",
+  "/api/deals/refresh-manual/route": "app/api/deals/refresh-manual/route.js",
+  "/api/style/analyse-image/route": "app/api/style/analyse-image/route.js",
+  "/api/deals/refresh/route": "app/api/deals/refresh/route.js",
+  "/api/deals/refresh-url/route": "app/api/deals/refresh-url/route.js",
+  "/api/style/refresh-url/route": "app/api/style/refresh-url/route.js",
+  "/api/style/refresh/route": "app/api/style/refresh/route.js",
+  "/api/wardrobe/items/route": "app/api/wardrobe/items/route.js",
+  "/api/wardrobe/log-outfit/route": "app/api/wardrobe/log-outfit/route.js",
+  "/api/wardrobe/suggest/route": "app/api/wardrobe/suggest/route.js",
   "/deals/page": "app/deals/page.js",
-  "/style/page": "app/style/page.js"
+  "/style/page": "app/style/page.js",
+  "/dress/page": "app/dress/page.js",
+  "/page": "app/page.js",
+  "/api/daily-brief/route": "app/api/daily-brief/route.js"
 }
