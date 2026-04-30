@@ -34,7 +34,7 @@ const ORDINALS = [
   'twenty-first', 'twenty-second', 'twenty-third', 'twenty-fourth', 'twenty-fifth',
   'twenty-sixth', 'twenty-seventh', 'twenty-eighth', 'twenty-ninth', 'thirtieth', 'thirty-first',
 ];
-const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const DAYS   = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'];
 
@@ -48,12 +48,54 @@ function getDailyQuote() {
   return QUOTES[dayOfYear % QUOTES.length];
 }
 
+// Weather condition → simple label
+function weatherIcon(desc: string): string {
+  const d = desc.toLowerCase();
+  if (d.includes('sunny') || d.includes('clear'))              return '☀';
+  if (d.includes('partly') || d.includes('cloud'))             return '⛅';
+  if (d.includes('overcast'))                                   return '☁';
+  if (d.includes('rain') || d.includes('drizzle'))             return '🌧';
+  if (d.includes('thunder') || d.includes('storm'))            return '⛈';
+  if (d.includes('fog') || d.includes('mist') || d.includes('haz')) return '🌫';
+  return '🌡';
+}
+
+interface DailyBrief {
+  weather: { tempC: number; feelsC: number; desc: string; humidity: number };
+  outfits: string[];
+  weatherTip: string;
+}
+
 // ── Landing page ─────────────────────────────────────────────
 function LandingPage() {
   const router = useRouter();
-  const today = new Date();
+  const today  = new Date();
   const dateStr = formatLongDate(today);
-  const quote = getDailyQuote();
+  const quote   = getDailyQuote();
+
+  const [brief, setBrief]       = useState<DailyBrief | null>(null);
+  const [briefError, setBriefError] = useState(false);
+
+  useEffect(() => {
+    const cacheKey = `polly_brief_${today.toDateString()}`;
+    try {
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) { setBrief(JSON.parse(cached)); return; }
+    } catch { /* ignore */ }
+
+    fetch('/api/daily-brief')
+      .then(r => r.json())
+      .then(data => {
+        if (data.weather) {
+          setBrief(data);
+          try { localStorage.setItem(cacheKey, JSON.stringify(data)); } catch { /* ignore */ }
+        } else {
+          setBriefError(true);
+        }
+      })
+      .catch(() => setBriefError(true));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const iconStroke: React.CSSProperties = {
     width: 22, height: 22, stroke: '#C9848A', fill: 'none', strokeWidth: 1.2,
@@ -66,7 +108,7 @@ function LandingPage() {
       fontFamily: 'var(--font-dm-sans), sans-serif',
     }}>
 
-      {/* Top row — monogram only */}
+      {/* Top row — monogram */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '18px 26px 0' }}>
         <div style={{
           fontFamily: 'var(--font-cormorant), serif',
@@ -156,6 +198,92 @@ function LandingPage() {
         </button>
       </div>
 
+      {/* Weather & outfit brief */}
+      {!briefError && (
+        <div style={{ margin: '36px 28px 0', borderRadius: 20, border: '1px solid #EDD9DB', background: '#FFFFFF', overflow: 'hidden' }}>
+          {/* Weather bar */}
+          <div style={{
+            background: 'linear-gradient(135deg, #FAF7F4 0%, #FDF0F1 100%)',
+            padding: '18px 20px 16px',
+            borderBottom: '1px solid #EDD9DB',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          }}>
+            <div>
+              <div style={{ fontSize: 9.5, letterSpacing: '0.28em', textTransform: 'uppercase', color: '#C4A35A', fontWeight: 500, marginBottom: 6 }}>
+                Hong Kong · Today
+              </div>
+              {brief ? (
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                  <span style={{ fontFamily: 'var(--font-cormorant), serif', fontSize: 44, fontWeight: 400, lineHeight: 1, color: '#2A2A2A' }}>
+                    {brief.weather.tempC}°
+                  </span>
+                  <span style={{ fontFamily: 'var(--font-dm-sans), sans-serif', fontSize: 13, color: '#5A5A5A' }}>
+                    {brief.weather.desc}
+                  </span>
+                </div>
+              ) : (
+                <div style={{ height: 44, display: 'flex', alignItems: 'center' }}>
+                  <div className="skeleton-pulse" style={{ width: 80, height: 36, borderRadius: 8, background: '#F2D4D7' }} />
+                </div>
+              )}
+              {brief && (
+                <div style={{ fontSize: 11, color: '#7A7170', marginTop: 4 }}>
+                  Feels like {brief.weather.feelsC}° · {brief.weather.humidity}% humidity
+                </div>
+              )}
+            </div>
+            <div style={{ fontSize: 46, lineHeight: 1, opacity: brief ? 1 : 0.3 }}>
+              {brief ? weatherIcon(brief.weather.desc) : '🌡'}
+            </div>
+          </div>
+
+          {/* Outfit suggestions */}
+          <div style={{ padding: '16px 20px 20px' }}>
+            <div style={{ fontSize: 9.5, letterSpacing: '0.28em', textTransform: 'uppercase', color: '#C4A35A', fontWeight: 500, marginBottom: 14 }}>
+              What to wear today
+            </div>
+            {brief ? (
+              <>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {brief.outfits.map((outfit, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                      <span style={{
+                        fontFamily: 'var(--font-cormorant), serif',
+                        fontStyle: 'italic', fontSize: 13, color: '#C4A35A',
+                        lineHeight: 1.5, flexShrink: 0,
+                      }}>
+                        {['I', 'II', 'III'][i]}
+                      </span>
+                      <span style={{
+                        fontFamily: 'var(--font-cormorant), serif',
+                        fontStyle: 'italic', fontSize: 16, color: '#2A2A2A', lineHeight: 1.45,
+                      }}>
+                        {outfit}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                {brief.weatherTip && (
+                  <p style={{
+                    marginTop: 14, fontSize: 11.5, color: '#7A7170',
+                    fontStyle: 'italic', lineHeight: 1.5,
+                    paddingTop: 12, borderTop: '1px solid #EDD9DB',
+                  }}>
+                    {brief.weatherTip}
+                  </p>
+                )}
+              </>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {[80, 95, 70].map((w, i) => (
+                  <div key={i} className="skeleton-pulse" style={{ height: 18, borderRadius: 6, background: '#F2D4D7', width: `${w}%` }} />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Section header */}
       <div style={{ textAlign: 'center', marginTop: 44, padding: '0 28px' }}>
         <div style={{ fontSize: 9.5, letterSpacing: '0.32em', textTransform: 'uppercase', color: '#C4A35A', fontWeight: 500 }}>
@@ -165,18 +293,17 @@ function LandingPage() {
           fontFamily: 'var(--font-cormorant), serif',
           fontWeight: 400, fontSize: 30, lineHeight: 1.1, marginTop: 10, color: '#2A2A2A',
         }}>
-          Three small <em style={{ fontStyle: 'italic', color: '#C9848A' }}>indulgences,</em><br />chosen for you.
+          Two small <em style={{ fontStyle: 'italic', color: '#C9848A' }}>indulgences,</em><br />chosen for you.
         </h2>
       </div>
 
-      {/* Feature cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, padding: '24px 20px 0' }}>
+      {/* Feature cards — Style + Deals only */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, padding: '24px 20px 0' }}>
         {[
           {
             num: 'N° I', title: 'Style', href: '/style',
             desc: 'Pieces tailored to your taste, your closet, your week.',
             icon: (
-              // Dress silhouette
               <svg viewBox="0 0 24 24" style={iconStroke}>
                 <path d="M8 2l-4 5h3.5v13h9V7H20L16 2" />
                 <path d="M8 2c0 2.5 2 4 4 4s4-1.5 4-4" />
@@ -190,15 +317,6 @@ function LandingPage() {
               <svg viewBox="0 0 24 24" style={iconStroke}>
                 <path d="M3 12V4h8l10 10-8 8L3 12z"/>
                 <circle cx="8" cy="8" r="1.4" fill="#C9848A" stroke="none"/>
-              </svg>
-            ),
-          },
-          {
-            num: 'N° III', title: 'Family', href: '/family',
-            desc: 'Soft notes from home — moments, milestones, mornings.',
-            icon: (
-              <svg viewBox="0 0 24 24" style={iconStroke}>
-                <path d="M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.5-7 10-7 10z"/>
               </svg>
             ),
           },
@@ -281,7 +399,6 @@ export default function Home() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    // Always show splash on every visit / refresh
     setReady(true);
   }, []);
 

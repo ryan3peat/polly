@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Tag, Heart } from 'lucide-react';
+import { Tag, Home } from 'lucide-react';
 
 function DressIcon({ size, color, strokeWidth }: { size: number; color: string; strokeWidth: number }) {
   return (
@@ -17,14 +17,14 @@ const ACTIVE   = '#C9848A';
 const INACTIVE = '#7A7170';
 const GOLD     = '#C4A35A';
 
+const tabs = [
+  { href: '/',       label: 'Home',  type: 'home'  as const },
+  { href: '/style',  label: 'Style', type: 'dress' as const },
+  { href: '/deals',  label: 'Deals', type: 'tag'   as const },
+];
+
 export default function BottomNav() {
   const pathname = usePathname();
-
-  const tabs = [
-    { href: '/style',  label: 'Style',  isDress: true,  Icon: null as typeof Tag | null },
-    { href: '/deals',  label: 'Deals',  isDress: false, Icon: Tag },
-    { href: '/family', label: 'Family', isDress: false, Icon: Heart },
-  ];
 
   return (
     <nav
@@ -43,9 +43,10 @@ export default function BottomNav() {
         paddingBottom: 'env(safe-area-inset-bottom)',
       }}
     >
-      {tabs.map(({ href, label, Icon, isDress }) => {
+      {tabs.map(({ href, label, type }) => {
         const active = pathname === href;
         const colour = active ? ACTIVE : INACTIVE;
+        const sw = active ? 2 : 1.5;
 
         return (
           <Link
@@ -81,10 +82,9 @@ export default function BottomNav() {
               }}
             />
 
-            {isDress
-              ? <DressIcon size={20} color={colour} strokeWidth={active ? 2 : 1.5} />
-              : Icon && <Icon size={20} color={colour} strokeWidth={active ? 2 : 1.5} />
-            }
+            {type === 'dress' && <DressIcon size={20} color={colour} strokeWidth={sw} />}
+            {type === 'tag'   && <Tag  size={20} color={colour} strokeWidth={sw} />}
+            {type === 'home'  && <Home size={20} color={colour} strokeWidth={sw} />}
 
             <span
               style={{
