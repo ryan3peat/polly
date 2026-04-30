@@ -17,7 +17,7 @@ export interface Deal {
   saving: string;
   expiry_date: string;
   booking_url: string;
-  category: 'Dining' | 'Flights' | 'Hotels' | 'Entertainment';
+  category: 'Dining' | 'Flights' | 'Entertainment';
   source_name: string;
   created_at: string;
 }

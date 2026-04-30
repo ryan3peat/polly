@@ -2,16 +2,15 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Tag, Loader2, UtensilsCrossed, Plane, Building2, Ticket } from 'lucide-react';
+import { Tag, Loader2, UtensilsCrossed, Plane, Ticket } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { Deal } from '@/types';
 
-type Category = 'All' | 'Dining' | 'Flights' | 'Hotels' | 'Entertainment';
-const CATEGORIES: Category[] = ['All', 'Dining', 'Flights', 'Hotels', 'Entertainment'];
+type Category = 'All' | 'Dining' | 'Flights' | 'Entertainment';
+const CATEGORIES: Category[] = ['All', 'Dining', 'Flights', 'Entertainment'];
 
 function categoryIcon(category: string) {
   if (category === 'Flights') return <Plane size={22} color="#C9848A" />;
-  if (category === 'Hotels') return <Building2 size={22} color="#C9848A" />;
   if (category === 'Entertainment') return <Ticket size={22} color="#C9848A" />;
   return <UtensilsCrossed size={22} color="#C9848A" />;
 }
@@ -138,7 +137,7 @@ function DealCard({ deal, index }: { deal: Deal; index: number }) {
 // ── Add source section ────────────────────────────────────────────
 function AddSourceSection({ onDealsAdded }: { onDealsAdded: () => void }) {
   const [url, setUrl] = useState('');
-  const [category, setCategory] = useState<'Dining' | 'Flights' | 'Hotels' | 'Entertainment'>('Dining');
+  const [category, setCategory] = useState<'Dining' | 'Flights' | 'Entertainment'>('Dining');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -206,7 +205,7 @@ function AddSourceSection({ onDealsAdded }: { onDealsAdded: () => void }) {
       )}
 
       <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-        {(['Dining', 'Flights', 'Hotels', 'Entertainment'] as const).map(cat => (
+        {(['Dining', 'Flights', 'Entertainment'] as const).map(cat => (
           <button key={cat} onClick={() => setCategory(cat)} style={catBtn(cat)}>
             {cat}
           </button>
