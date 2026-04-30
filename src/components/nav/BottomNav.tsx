@@ -2,13 +2,16 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Sparkles, Tag, Heart } from 'lucide-react';
+import { Tag, Heart } from 'lucide-react';
 
-const TABS = [
-  { href: '/style',  label: 'Style',  Icon: Sparkles },
-  { href: '/deals',  label: 'Deals',  Icon: Tag      },
-  { href: '/family', label: 'Family', Icon: Heart    },
-] as const;
+function DressIcon({ size, color, strokeWidth }: { size: number; color: string; strokeWidth: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 2l-4 5h3.5v13h9V7H20L16 2" />
+      <path d="M8 2c0 2.5 2 4 4 4s4-1.5 4-4" />
+    </svg>
+  );
+}
 
 const ACTIVE   = '#C9848A';
 const INACTIVE = '#7A7170';
@@ -16,6 +19,12 @@ const GOLD     = '#C4A35A';
 
 export default function BottomNav() {
   const pathname = usePathname();
+
+  const tabs = [
+    { href: '/style',  label: 'Style',  isDress: true,  Icon: null as typeof Tag | null },
+    { href: '/deals',  label: 'Deals',  isDress: false, Icon: Tag },
+    { href: '/family', label: 'Family', isDress: false, Icon: Heart },
+  ];
 
   return (
     <nav
@@ -34,7 +43,7 @@ export default function BottomNav() {
         paddingBottom: 'env(safe-area-inset-bottom)',
       }}
     >
-      {TABS.map(({ href, label, Icon }) => {
+      {tabs.map(({ href, label, Icon, isDress }) => {
         const active = pathname === href;
         const colour = active ? ACTIVE : INACTIVE;
 
@@ -58,7 +67,6 @@ export default function BottomNav() {
               cursor: 'pointer',
             }}
           >
-            {/* Gold underline indicator */}
             <div
               style={{
                 position: 'absolute',
@@ -73,11 +81,10 @@ export default function BottomNav() {
               }}
             />
 
-            <Icon
-              size={20}
-              color={colour}
-              strokeWidth={active ? 2 : 1.5}
-            />
+            {isDress
+              ? <DressIcon size={20} color={colour} strokeWidth={active ? 2 : 1.5} />
+              : Icon && <Icon size={20} color={colour} strokeWidth={active ? 2 : 1.5} />
+            }
 
             <span
               style={{

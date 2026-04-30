@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { anthropic } from '@/lib/anthropic';
-import { supabase } from '@/lib/supabase';
+import { getServiceSupabase } from '@/lib/supabaseServer';
 import { fetchPageContent } from '@/lib/jina';
 
 export async function POST(req: NextRequest) {
@@ -34,6 +34,7 @@ export async function POST(req: NextRequest) {
 
     const toInsert = parsed.filter(item => item.headline && item.summary);
 
+    const supabase = getServiceSupabase();
     let inserted = 0;
     if (toInsert.length > 0) {
       const { error } = await supabase.from('style_items').insert(

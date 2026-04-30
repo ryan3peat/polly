@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Parser from 'rss-parser';
 import { anthropic } from '@/lib/anthropic';
-import { supabase } from '@/lib/supabase';
+import { getServiceSupabase } from '@/lib/supabaseServer';
 import { STYLE_FEEDS } from '@/lib/styleSources';
 
 const parser = new Parser({
@@ -121,11 +121,22 @@ Source URL: ${item.link}`,
       })
     );
 
-    // ── Step 4: Insert ─────────────────────────────────────────
-    const toInsert = enriched
+    // ── Step 4: Deduplicate & insert ───────────────────────────
+    const supabase = getServiceSupabase();
+
+    const candidates = enriched
       .filter((r): r is PromiseFulfilledResult<ParsedItem> => r.status === 'fulfilled')
       .map(r => r.value)
       .filter(item => item.image_url !== '');
+
+    // Fetch existing source_urls so we don't insert duplicates
+    const candidateUrls = candidates.map(c => c.source_url);
+    const { data: existing } = await supabase
+      .from('style_items').select('source_url')
+      .in('source_url', candidateUrls);
+    const seenUrls = new Set((existing ?? []).map((r: { source_url: string }) => r.source_url));
+
+    const toInsert = candidates.filter(c => !seenUrls.has(c.source_url));
 
     let inserted = 0;
     if (toInsert.length > 0) {
