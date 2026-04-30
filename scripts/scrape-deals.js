@@ -189,7 +189,7 @@ async function main() {
 
       const deals = await extractDeals(content, src.url, src.category, src.name, src.strict);
       console.log(`[scrape-deals] Extracted ${deals.length} deals`);
-      if (deals.length === 0) console.log(`[scrape-deals] Content sample: ${content.slice(0, 400)}`);
+      if (deals.length === 0) console.log(`[scrape-deals] Content sample (${src.name}): ${content.slice(0, 300)}`);
       allDeals.push(...deals);
     } catch (err) {
       console.error(`[scrape-deals] Failed for ${src.name}:`, err.message);
