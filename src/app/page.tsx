@@ -293,16 +293,16 @@ function LandingPage() {
           fontFamily: 'var(--font-cormorant), serif',
           fontWeight: 400, fontSize: 30, lineHeight: 1.1, marginTop: 10, color: '#2A2A2A',
         }}>
-          Two small <em style={{ fontStyle: 'italic', color: '#C9848A' }}>indulgences,</em><br />chosen for you.
+          Three small <em style={{ fontStyle: 'italic', color: '#C9848A' }}>indulgences,</em><br />chosen for you.
         </h2>
       </div>
 
-      {/* Feature cards — Style + Deals only */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, padding: '24px 20px 0' }}>
+      {/* Feature cards — Style, Deals, Wardrobe */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, padding: '24px 20px 0' }}>
         {[
           {
             num: 'N° I', title: 'Style', href: '/style',
-            desc: 'Pieces tailored to your taste, your closet, your week.',
+            desc: 'Fashion finds curated for your taste.',
             icon: (
               <svg viewBox="0 0 24 24" style={iconStroke}>
                 <path d="M8 2l-4 5h3.5v13h9V7H20L16 2" />
@@ -312,11 +312,21 @@ function LandingPage() {
           },
           {
             num: 'N° II', title: 'Deals', href: '/deals',
-            desc: 'Quiet alerts when the labels you love go on sale.',
+            desc: 'The best offers in Hong Kong today.',
             icon: (
               <svg viewBox="0 0 24 24" style={iconStroke}>
                 <path d="M3 12V4h8l10 10-8 8L3 12z"/>
                 <circle cx="8" cy="8" r="1.4" fill="#C9848A" stroke="none"/>
+              </svg>
+            ),
+          },
+          {
+            num: 'N° III', title: 'Wardrobe', href: '/dress',
+            desc: 'Log outfits, build your wardrobe, get dressed.',
+            icon: (
+              <svg viewBox="0 0 24 24" style={iconStroke}>
+                <path d="M3 6h18M3 12h18M3 18h18" strokeLinecap="round"/>
+                <rect x="7" y="2" width="10" height="4" rx="1"/>
               </svg>
             ),
           },
