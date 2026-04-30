@@ -416,11 +416,26 @@ export default function StylePage() {
     const { data } = await supabase
       .from('style_items').select('*')
       .order('created_at', { ascending: false }).limit(40);
-    setItems(data ?? []);
+    const rows = data ?? [];
+    setItems(rows);
     setLoading(false);
+    return rows.length;
   }, []);
 
-  useEffect(() => { fetchItems(); }, [fetchItems]);
+  useEffect(() => {
+    fetchItems().then(count => {
+      if (count === 0) {
+        setRefreshing(true);
+        const enabledSources = Object.entries(defaultPrefs()).filter(([, on]) => on).map(([n]) => n);
+        fetch('/api/style/refresh', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enabledSources }),
+        }).then(() => fetchItems()).finally(() => setRefreshing(false));
+      }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchItems]);
 
   const handleRefresh = async () => {
     setRefreshing(true);

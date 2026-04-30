@@ -1,5 +1,7 @@
 {
   "functions": {
-    "src/app/api/deals/refresh-url/route.ts": { "maxDuration": 60 }
+    "src/app/api/deals/refresh-url/route.ts": { "maxDuration": 60 },
+    "src/app/api/style/refresh/route.ts":     { "maxDuration": 60 },
+    "src/app/api/style/refresh-url/route.ts": { "maxDuration": 60 }
   }
 }
