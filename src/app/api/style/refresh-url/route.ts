@@ -66,10 +66,10 @@ export async function POST(req: NextRequest) {
     });
 
     const raw  = message.content[0].type === 'text' ? message.content[0].text : '[]';
-    const parsed: Array<{
+    const parsed = extractJsonArray(raw) as Array<{
       headline: string; summary: string; image_url: string;
       category: 'Celebrity' | 'Trend' | 'Shopping'; source_url: string;
-    }> = extractJsonArray(raw);
+    }>;
 
     const toInsert = parsed.filter(item => item.headline && item.summary);
 
