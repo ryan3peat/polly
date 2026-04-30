@@ -8,25 +8,24 @@ interface SplashScreenProps {
   photos?: string[];
 }
 
-const FRAME_SIZE = 56;
+const FRAME_SIZE = 73;   // +30% from 56
 const NUM_FRAMES = 8;
 const CONTENT_OFFSET = -46;
 
 export default function SplashScreen({ onComplete, photos }: SplashScreenProps) {
-  const [showRing, setShowRing]       = useState(true);
+  const [showRing, setShowRing]         = useState(true);
   const [showPortrait, setShowPortrait] = useState(false);
-  const [showTitle, setShowTitle]     = useState(false);
+  const [showTitle, setShowTitle]       = useState(false);
   const [showSubtitle, setShowSubtitle] = useState(false);
-  const [fadeOut, setFadeOut]         = useState(false);
+  const [fadeOut, setFadeOut]           = useState(false);
 
-  // Computed at mount so we have access to window
-  const [ringRadius, setRingRadius]   = useState(120);
-  const [portraitSize, setPortraitSize] = useState(120);
+  const [ringRadius, setRingRadius]     = useState(156);
+  const [portraitSize, setPortraitSize] = useState(180);
 
   useEffect(() => {
     const w = window.innerWidth;
-    setRingRadius(Math.min(Math.round(w * 0.35), 140));
-    setPortraitSize(w < 360 ? 100 : 120);
+    setRingRadius(Math.min(Math.round(w * 0.455), 182));  // +30% from 0.35 / 140
+    setPortraitSize(w < 360 ? 150 : 180);                 // +50% from 100/120
   }, []);
 
   useEffect(() => {
@@ -53,24 +52,16 @@ export default function SplashScreen({ onComplete, photos }: SplashScreenProps) 
       transition={{ duration: 0.6 }}
       style={{ position: 'fixed', inset: 0, background: '#FAF7F4', overflow: 'hidden' }}
     >
-      {/* Skip — min 44×44px touch target */}
+      {/* Skip */}
       <button
         onClick={onComplete}
         style={{
-          position: 'absolute',
-          top: 44,
-          right: 12,
-          background: 'none',
-          border: 'none',
-          fontFamily: "'DM Sans', sans-serif",
-          fontSize: 13,
-          color: '#7A7170',
-          cursor: 'pointer',
-          minWidth: 44,
-          minHeight: 44,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
+          position: 'absolute', top: 44, right: 12,
+          background: 'none', border: 'none',
+          fontFamily: 'var(--font-dm-sans), sans-serif',
+          fontSize: 13, color: '#7A7170', cursor: 'pointer',
+          minWidth: 44, minHeight: 44,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
           zIndex: 10,
         }}
       >
@@ -78,15 +69,11 @@ export default function SplashScreen({ onComplete, photos }: SplashScreenProps) 
       </button>
 
       {/* Ring anchor */}
-      <div
-        style={{
-          position: 'absolute',
-          top: `calc(50% + ${CONTENT_OFFSET}px)`,
-          left: '50%',
-          width: 0,
-          height: 0,
-        }}
-      >
+      <div style={{
+        position: 'absolute',
+        top: `calc(50% + ${CONTENT_OFFSET}px)`,
+        left: '50%', width: 0, height: 0,
+      }}>
         <AnimatePresence>
           {showRing && (
             <motion.div
@@ -106,10 +93,8 @@ export default function SplashScreen({ onComplete, photos }: SplashScreenProps) 
                   key={i}
                   style={{
                     position: 'absolute',
-                    width: FRAME_SIZE,
-                    height: FRAME_SIZE,
-                    borderRadius: '50%',
-                    overflow: 'hidden',
+                    width: FRAME_SIZE, height: FRAME_SIZE,
+                    borderRadius: '50%', overflow: 'hidden',
                     background: '#F2D4D7',
                     transform: `translate(calc(${x}px - 50%), calc(${y}px - 50%))`,
                   }}
@@ -128,37 +113,34 @@ export default function SplashScreen({ onComplete, photos }: SplashScreenProps) 
         </AnimatePresence>
       </div>
 
-      {/* Portrait + text anchor */}
-      <div
-        style={{
-          position: 'absolute',
-          top: `calc(50% + ${CONTENT_OFFSET}px)`,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-        }}
-      >
+      {/* Portrait + text */}
+      <div style={{
+        position: 'absolute',
+        top: `calc(50% + ${CONTENT_OFFSET}px)`,
+        left: '50%',
+        transform: 'translateX(-50%)',
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+      }}>
         <motion.div
           animate={{ opacity: showPortrait ? 1 : 0, scale: showPortrait ? 1 : 0.8 }}
           transition={{ duration: 0.6, ease: 'easeOut' }}
           style={{
-            width: portraitSize,
-            height: portraitSize,
+            width: portraitSize, height: portraitSize,
             borderRadius: '50%',
             border: '2px solid #C4A35A',
-            overflow: 'hidden',
-            background: '#C9848A',
-            flexShrink: 0,
-            transform: 'translateY(-50%)',
+            overflow: 'hidden', background: '#C9848A',
+            flexShrink: 0, transform: 'translateY(-50%)',
           }}
         >
           {photos && photos[0] && (
             <img
               src={photos[0]}
               alt="Polly"
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              style={{
+                width: '100%', height: '100%',
+                objectFit: 'cover',
+                objectPosition: 'center 20%',  // show top of photo (head not cropped)
+              }}
             />
           )}
         </motion.div>
@@ -167,13 +149,9 @@ export default function SplashScreen({ onComplete, photos }: SplashScreenProps) 
           animate={{ opacity: showTitle ? 1 : 0, y: showTitle ? 0 : 16 }}
           transition={{ duration: 0.6, ease: 'easeOut' }}
           style={{
-            fontFamily: "'Cormorant Garamond', serif",
-            fontSize: 34,
-            fontWeight: 400,
-            color: '#2A2A2A',
-            letterSpacing: '0.05em',
-            marginTop: 16,
-            marginBottom: 0,
+            fontFamily: 'var(--font-cormorant), serif',
+            fontSize: 34, fontWeight: 400, color: '#2A2A2A',
+            letterSpacing: '0.05em', marginTop: 16, marginBottom: 0,
             whiteSpace: 'nowrap',
           }}
         >
@@ -184,12 +162,9 @@ export default function SplashScreen({ onComplete, photos }: SplashScreenProps) 
           animate={{ opacity: showSubtitle ? 1 : 0 }}
           transition={{ duration: 0.6, ease: 'easeOut' }}
           style={{
-            fontFamily: "'DM Sans', sans-serif",
-            fontStyle: 'italic',
-            fontSize: 13,
-            color: '#7A7170',
-            marginTop: 8,
-            whiteSpace: 'nowrap',
+            fontFamily: 'var(--font-dm-sans), sans-serif',
+            fontStyle: 'italic', fontSize: 13, color: '#7A7170',
+            marginTop: 8, whiteSpace: 'nowrap',
           }}
         >
           Your daily world, curated.
