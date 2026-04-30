@@ -327,9 +327,23 @@ function AnalyseModal({ item, onClose }: { item: StyleItem; onClose: () => void 
         </div>
 
         <div style={{ padding: '20px 20px 40px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600, color: '#2A2A2A', lineHeight: 1.4 }}>
-            {item.headline}
-          </p>
+          <div>
+            <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600, color: '#2A2A2A', lineHeight: 1.4, marginBottom: 8 }}>
+              {item.headline}
+            </p>
+            {item.source_url && (
+              <button
+                onClick={() => window.open(item.source_url, '_blank')}
+                style={{
+                  background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                  fontFamily: "'DM Sans', sans-serif", fontSize: 12,
+                  color: '#C9848A', textDecoration: 'underline', textUnderlineOffset: 3,
+                }}
+              >
+                Read article →
+              </button>
+            )}
+          </div>
 
           {shopItems.length === 0 && !analysing && (
             <button
