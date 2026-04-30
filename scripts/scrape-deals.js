@@ -5,11 +5,8 @@ const { createClient } = require('@supabase/supabase-js');
 
 chromium.use(StealthPlugin());
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-);
+let anthropic;
+let supabase;
 
 const SOURCES = [
   { name: 'HSBC Red Hot Offers', url: 'https://www.redhotoffers.hsbc.com.hk/en/latest-offers/red-hot-dining-special/2026-q2-dining/western-cuisine/', category: 'Dining' },
@@ -104,9 +101,14 @@ async function scrapeUrl(browser, url) {
 
 async function main() {
   console.log('[scrape-deals] Starting...');
+  console.log('[scrape-deals] Env keys present:', Object.keys(process.env).filter(k => k.includes('SUPABASE') || k.includes('ANTHROPIC')));
+
   if (!process.env.ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY is not set');
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL) throw new Error('NEXT_PUBLIC_SUPABASE_URL is not set');
   if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) throw new Error('NEXT_PUBLIC_SUPABASE_ANON_KEY is not set');
+
+  anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 
   const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const { error: deleteError } = await supabase.from('deals').delete().lt('created_at', cutoff);
