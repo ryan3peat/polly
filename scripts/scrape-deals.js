@@ -1,5 +1,5 @@
 const { chromium } = require('playwright-extra');
-const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+const StealthPlugin = require('puppeteer-extra-plugin-stealth').default ?? require('puppeteer-extra-plugin-stealth');
 const Anthropic = require('@anthropic-ai/sdk');
 const { createClient } = require('@supabase/supabase-js');
 
@@ -104,6 +104,9 @@ async function scrapeUrl(browser, url) {
 
 async function main() {
   console.log('[scrape-deals] Starting...');
+  if (!process.env.ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY is not set');
+  if (!process.env.SUPABASE_URL) throw new Error('SUPABASE_URL is not set');
+  if (!process.env.SUPABASE_ANON_KEY) throw new Error('SUPABASE_ANON_KEY is not set');
 
   const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const { error: deleteError } = await supabase.from('deals').delete().lt('created_at', cutoff);
