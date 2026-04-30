@@ -2,16 +2,15 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Tag, Loader2, UtensilsCrossed, Plane, Ticket } from 'lucide-react';
+import { Tag, Loader2, UtensilsCrossed, Plane } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { Deal } from '@/types';
 
-type Category = 'All' | 'Dining' | 'Flights' | 'Entertainment';
-const CATEGORIES: Category[] = ['All', 'Dining', 'Flights', 'Entertainment'];
+type Category = 'All' | 'Dining' | 'Flights';
+const CATEGORIES: Category[] = ['All', 'Dining', 'Flights'];
 
 function categoryIcon(category: string) {
   if (category === 'Flights') return <Plane size={22} color="#C9848A" />;
-  if (category === 'Entertainment') return <Ticket size={22} color="#C9848A" />;
   return <UtensilsCrossed size={22} color="#C9848A" />;
 }
 
@@ -205,7 +204,7 @@ function AddSourceSection({ onDealsAdded }: { onDealsAdded: () => void }) {
       )}
 
       <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-        {(['Dining', 'Flights', 'Entertainment'] as const).map(cat => (
+        {(['Dining', 'Flights'] as const).map(cat => (
           <button key={cat} onClick={() => setCategory(cat)} style={catBtn(cat)}>
             {cat}
           </button>

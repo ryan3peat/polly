@@ -12,30 +12,43 @@ const SOURCES = [
   { name: 'HSBC Red Hot Offers', url: 'https://www.redhotoffers.hsbc.com.hk/en/latest-offers/red-hot-dining-special/2026-q2-dining/western-cuisine/', category: 'Dining' },
   { name: 'HSBC Red Hot Offers', url: 'https://www.redhotoffers.hsbc.com.hk/en/latest-offers/red-hot-dining-special/2026-q2-dining/japanese-and-asian-cuisine/', category: 'Dining' },
   { name: 'HSBC Red Hot Offers', url: 'https://www.redhotoffers.hsbc.com.hk/en/latest-offers/red-hot-dining-special/2026-q2-dining/chinese-cuisine/', category: 'Dining' },
-  { name: 'HSBC Red Hot Offers', url: 'https://www.redhotoffers.hsbc.com.hk/en/latest-offers/red-hot-dining-special/2026-q2-dining/hotel-dining/', category: 'Dining' },
   { name: 'DiningCity HK', url: 'https://restaurantweek.diningcity.hk/lang/en/cities/hongkong/restaurants', category: 'Dining' },
   { name: 'Cathay Pacific', url: 'https://www.cathaypacific.com/cx/en_HK/offers.html', category: 'Flights' },
 ];
 
 function buildPrompt(content, sourceUrl, category) {
-  return `You are curating high-value deals for a Hong Kong lifestyle app. Apply a strict quality filter — only extract deals that clearly meet at least one of these criteria:
-1. Buy 1 get 1 free (or equivalent: 2-for-1, complimentary dish/item)
-2. Free bottle of wine (or free drinks/bottle with meal)
-3. 20% off or more (must be explicitly stated as a percentage discount)
+  return `You are curating high-value deals for a Hong Kong lifestyle app. Apply a STRICT quality filter — only extract deals that clearly meet at least one of these criteria:
+1. Buy 1 get 1 free (or equivalent: 2-for-1, complimentary dish/item of equal or greater value)
+2. Free bottle of wine or free drinks included with a meal
+3. STRICTLY 20% off or more — if the discount percentage is less than 20%, DO NOT include it. 12% off, 15% off, 18% off are all excluded.
 
-Skip anything that is a vague "special offer", requires membership sign-up to see the saving, or does not clearly meet the above criteria.
+Important rules:
+- Each deal MUST be for a specific named restaurant or venue — never include category headings or generic offers
+- Skip hotel dining venues entirely — only standalone restaurants
+- Skip vague "special offers", membership-gated deals, or anything without a clear stated saving
+- If unsure whether a discount meets 20%, skip it
 
 For each qualifying deal, return a JSON object with exactly these fields:
-- title: string (specific headline naming the restaurant or venue and the deal, max 12 words — e.g. "Zuma: Buy 1 Get 1 Free on Set Lunch")
-- description: string (2-3 sentences with full specifics: restaurant/venue name, exact offer terms, cuisine type, any card or day restrictions — e.g. "Buy 1 get 1 free on all set lunches at Zuma, a Japanese robata restaurant in Wan Chai. Valid Monday to Thursday with HSBC credit card.")
-- saving: string (the exact saving stated, e.g. 'Buy 1 get 1 free', 'Free bottle of wine', '30% off', 'HK$200 off' — never use 'Special offer')
-- expiry_date: string (the deal end date as written on the page, or 'Limited time' if not specified)
-- booking_url: string (the direct URL to the specific deal page if visible, otherwise: ${sourceUrl})
+- title: string (specific headline naming the restaurant and the deal, max 12 words — e.g. "Zuma: Buy 1 Get 1 Free on Set Lunch")
+- description: string (2-3 sentences: restaurant name, exact offer terms, cuisine type, card/day restrictions)
+- saving: string (exact saving — e.g. 'Buy 1 get 1 free', 'Free bottle of wine', '30% off' — never 'Special offer')
+- expiry_date: string (end date as written, or 'Limited time')
+- booking_url: string (direct URL to deal if visible, otherwise: ${sourceUrl})
 - category: use exactly '${category}'
 
-Return a JSON array of qualifying deals only. If no deals meet the criteria, return [].
+Return a JSON array only. If no deals qualify, return [].
 
 Page content (first 8000 chars): ${content.slice(0, 8000)}`;
+}
+
+// Post-filter: reject any percentage discount explicitly under 20%
+function passesDiscountFilter(saving) {
+  const match = saving.match(/(\d+(?:\.\d+)?)\s*%/);
+  if (match) {
+    const pct = parseFloat(match[1]);
+    if (pct < 20) return false;
+  }
+  return true;
 }
 
 async function extractDeals(content, sourceUrl, category, sourceName) {
@@ -61,7 +74,8 @@ async function extractDeals(content, sourceUrl, category, sourceName) {
       typeof d.title === 'string' && d.title.trim() &&
       typeof d.description === 'string' && d.description.trim() &&
       typeof d.saving === 'string' && d.saving.trim() &&
-      d.saving !== 'Special offer'
+      d.saving !== 'Special offer' &&
+      passesDiscountFilter(String(d.saving))
     )
     .map(d => ({
       title: String(d.title).trim(),
@@ -87,6 +101,16 @@ async function scrapeUrl(browser, url) {
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
     await page.waitForTimeout(3000);
 
+    // Scroll to trigger lazy-loaded content (important for SPAs like DiningCity)
+    await page.evaluate(async () => {
+      for (let i = 0; i < 5; i++) {
+        window.scrollBy(0, window.innerHeight);
+        await new Promise(r => setTimeout(r, 600));
+      }
+      window.scrollTo(0, 0);
+    });
+    await page.waitForTimeout(2000);
+
     const text = await page.evaluate(() => {
       const remove = document.querySelectorAll('script, style, nav, footer, header, [aria-hidden="true"]');
       remove.forEach(el => el.remove());
@@ -97,6 +121,16 @@ async function scrapeUrl(browser, url) {
   } finally {
     await context.close();
   }
+}
+
+function deduplicateDeals(deals) {
+  const seen = new Set();
+  return deals.filter(d => {
+    const key = d.title.toLowerCase().replace(/\s+/g, ' ');
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 async function main() {
@@ -110,9 +144,10 @@ async function main() {
   anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 
-  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-  const { error: deleteError } = await supabase.from('deals').delete().lt('created_at', cutoff);
+  // Wipe all existing deals for a clean slate on every run
+  const { error: deleteError } = await supabase.from('deals').delete().neq('id', '00000000-0000-0000-0000-000000000000');
   if (deleteError) console.error('[scrape-deals] Delete error:', deleteError);
+  else console.log('[scrape-deals] Cleared existing deals');
 
   const browser = await chromium.launch({ headless: true });
 
@@ -136,9 +171,12 @@ async function main() {
 
   await browser.close();
 
+  const uniqueDeals = deduplicateDeals(allDeals);
+  console.log(`[scrape-deals] After dedup: ${uniqueDeals.length} (removed ${allDeals.length - uniqueDeals.length} duplicates)`);
+
   let inserted = 0;
-  if (allDeals.length > 0) {
-    const { data, error } = await supabase.from('deals').insert(allDeals).select('id');
+  if (uniqueDeals.length > 0) {
+    const { data, error } = await supabase.from('deals').insert(uniqueDeals).select('id');
     if (error) throw new Error(`Insert failed: ${error.message} — ${error.hint ?? ''}`);
     inserted = data?.length ?? 0;
   }
