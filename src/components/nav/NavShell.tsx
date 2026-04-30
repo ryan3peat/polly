@@ -1,11 +1,25 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import BottomNav from './BottomNav';
+import PasswordScreen, { isAuthed, setAuthed } from '@/components/auth/PasswordScreen';
 
 export default function NavShell({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
-  const showNav = pathname !== '/';
+  const pathname  = usePathname();
+  const showNav   = pathname !== '/';
+  const isInner   = pathname !== '/';
+
+  const [authed, setAuthed_] = useState(true); // optimistic — avoids flash on nav
+  const [checked, setChecked] = useState(false);
+
+  useEffect(() => {
+    setAuthed_(isAuthed());
+    setChecked(true);
+  }, [pathname]);
+
+  // Don't gate the home page here — it handles its own auth after splash
+  const needsGate = isInner && checked && !authed;
 
   return (
     <>
@@ -23,7 +37,10 @@ export default function NavShell({ children }: { children: React.ReactNode }) {
             : 0,
         }}
       >
-        {children}
+        {needsGate
+          ? <PasswordScreen onSuccess={() => { setAuthed(); setAuthed_(true); }} />
+          : children
+        }
       </div>
       {showNav && <BottomNav />}
     </>

@@ -1,8 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import SplashScreen from '@/components/splash/SplashScreen';
+import PasswordScreen, { isAuthed, setAuthed } from '@/components/auth/PasswordScreen';
+import { supabase } from '@/lib/supabase';
 
 const PHOTOS = [
   '/photos/p0.jpg', '/photos/p1.jpg', '/photos/p2.jpg',
@@ -66,6 +68,8 @@ interface DailyBrief {
   weatherTip: string;
 }
 
+const PROFILE_PHOTO_KEY = 'polly_profile_photo';
+
 // ── Landing page ─────────────────────────────────────────────
 function LandingPage() {
   const router = useRouter();
@@ -73,8 +77,37 @@ function LandingPage() {
   const dateStr = formatLongDate(today);
   const quote   = getDailyQuote();
 
-  const [brief, setBrief]       = useState<DailyBrief | null>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const [profilePhoto, setProfilePhoto] = useState('/photos/p0.jpg');
+  const [photoUploading, setPhotoUploading] = useState(false);
+
+  const [brief, setBrief]           = useState<DailyBrief | null>(null);
   const [briefError, setBriefError] = useState(false);
+
+  useEffect(() => {
+    const saved = localStorage.getItem(PROFILE_PHOTO_KEY);
+    if (saved) setProfilePhoto(saved);
+  }, []);
+
+  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPhotoUploading(true);
+    try {
+      const path = `profile-${Date.now()}-${file.name.replace(/\s/g, '-')}`;
+      const { data, error } = await supabase.storage
+        .from('wardrobe-photos')
+        .upload(path, file, { contentType: file.type, upsert: true });
+      if (error) throw error;
+      const { data: urlData } = supabase.storage.from('wardrobe-photos').getPublicUrl(data.path);
+      setProfilePhoto(urlData.publicUrl);
+      localStorage.setItem(PROFILE_PHOTO_KEY, urlData.publicUrl);
+    } catch { /* silently fail — keep existing photo */ }
+    finally {
+      setPhotoUploading(false);
+      if (photoInputRef.current) photoInputRef.current.value = '';
+    }
+  };
 
   useEffect(() => {
     const cacheKey = `polly_brief_${today.toDateString()}`;
@@ -138,22 +171,50 @@ function LandingPage() {
 
       {/* Hero */}
       <div style={{ textAlign: 'center', padding: '30px 28px 0' }}>
-        <div style={{
-          width: 188, height: 188, borderRadius: '50%',
-          margin: '0 auto', position: 'relative',
-          overflow: 'hidden', background: '#F4ECE6',
-          boxShadow: '0 18px 40px -20px rgba(201,132,138,0.35)',
-          border: '1px solid #C4A35A',
-        }}>
+        <input
+          ref={photoInputRef}
+          type="file"
+          accept="image/*"
+          style={{ display: 'none' }}
+          onChange={handlePhotoChange}
+        />
+        <div
+          onClick={() => photoInputRef.current?.click()}
+          style={{
+            width: 188, height: 188, borderRadius: '50%',
+            margin: '0 auto', position: 'relative',
+            overflow: 'hidden', background: '#F4ECE6',
+            boxShadow: '0 18px 40px -20px rgba(201,132,138,0.35)',
+            border: '1px solid #C4A35A', cursor: 'pointer',
+          }}
+        >
           <div style={{
             position: 'absolute', inset: 7, borderRadius: '50%',
             border: '1px solid rgba(196,163,90,0.25)', pointerEvents: 'none', zIndex: 1,
           }} />
           <img
-            src="/photos/p0.jpg"
+            src={profilePhoto}
             alt="Polly"
             style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 20%' }}
           />
+          {/* Edit overlay */}
+          <div style={{
+            position: 'absolute', inset: 0, borderRadius: '50%',
+            background: photoUploading ? 'rgba(42,42,42,0.45)' : 'rgba(42,42,42,0)',
+            display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+            paddingBottom: 14, zIndex: 2,
+            transition: 'background 0.2s',
+          }}>
+            <span style={{
+              fontSize: 10, fontFamily: 'var(--font-dm-sans), sans-serif',
+              color: '#FFFFFF', letterSpacing: '0.12em', textTransform: 'uppercase',
+              background: 'rgba(42,42,42,0.55)', borderRadius: 20,
+              padding: '3px 10px', opacity: photoUploading ? 1 : 0,
+              transition: 'opacity 0.2s',
+            }}>
+              {photoUploading ? 'Uploading…' : 'Change'}
+            </span>
+          </div>
         </div>
 
         <h1 style={{
@@ -406,9 +467,11 @@ function LandingPage() {
 // ── Root ─────────────────────────────────────────────────────
 export default function Home() {
   const [splashComplete, setSplashComplete] = useState(false);
-  const [ready, setReady] = useState(false);
+  const [authed, setAuthed_]               = useState(false);
+  const [ready, setReady]                  = useState(false);
 
   useEffect(() => {
+    setAuthed_(isAuthed());
     setReady(true);
   }, []);
 
@@ -420,6 +483,10 @@ export default function Home() {
         <SplashScreen onComplete={() => setSplashComplete(true)} photos={PHOTOS} />
       </div>
     );
+  }
+
+  if (!authed) {
+    return <PasswordScreen onSuccess={() => { setAuthed(true); setAuthed_(true); }} />;
   }
 
   return <LandingPage />;
