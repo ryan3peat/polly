@@ -510,27 +510,38 @@ export default function StylePage() {
           </div>
         </div>
 
-        {/* Feed */}
-        <div style={{ padding: '10px 10px 80px' }}>
-          {loading ? (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+        {/* Feed — filtered by enabled sources */}
+        {(() => {
+          const visibleItems = items.filter(item => {
+            const customMatch = customSources.find(s => s.name === item.source_name);
+            if (customMatch) return customMatch.enabled;
+            if (item.source_name in sourcePrefs) return sourcePrefs[item.source_name] !== false;
+            return true;
+          });
+
+          return (
+            <div style={{ padding: '10px 10px 80px' }}>
+              {loading ? (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+                </div>
+              ) : visibleItems.length === 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: 14 }}>
+                  <Sparkles size={32} color="#C9848A" strokeWidth={1.5} />
+                  <p style={{ fontFamily: "'DM Sans', sans-serif", fontStyle: 'italic', fontSize: 14, color: '#7A7170', textAlign: 'center' }}>
+                    {items.length > 0 ? 'No articles from your enabled sources' : 'Tap Refresh to load today\'s style feed'}
+                  </p>
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  {visibleItems.map((item, i) => (
+                    <StyleCard key={item.id} item={item} index={i} onImageTap={setSelectedItem} />
+                  ))}
+                </div>
+              )}
             </div>
-          ) : items.length === 0 ? (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: 14 }}>
-              <Sparkles size={32} color="#C9848A" strokeWidth={1.5} />
-              <p style={{ fontFamily: "'DM Sans', sans-serif", fontStyle: 'italic', fontSize: 14, color: '#7A7170', textAlign: 'center' }}>
-                Tap Refresh to load today&apos;s style feed
-              </p>
-            </div>
-          ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              {items.map((item, i) => (
-                <StyleCard key={item.id} item={item} index={i} onImageTap={setSelectedItem} />
-              ))}
-            </div>
-          )}
-        </div>
+          );
+        })()}
       </div>
 
       <AnimatePresence>

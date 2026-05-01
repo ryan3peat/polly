@@ -2,12 +2,14 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Tag, Loader2, UtensilsCrossed } from 'lucide-react';
+import { Tag, Loader2, UtensilsCrossed, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { Deal } from '@/types';
 
 type Category = 'All' | 'Dining';
 const CATEGORIES: Category[] = ['All', 'Dining'];
+
+const HIDDEN_DEALS_KEY = 'polly_hidden_deals';
 
 function categoryIcon(_category: string) {
   return <UtensilsCrossed size={22} color="#C9848A" />;
@@ -42,7 +44,7 @@ function SkeletonCard() {
 }
 
 // ── Deal card ────────────────────────────────────────────────────
-function DealCard({ deal, index }: { deal: Deal; index: number }) {
+function DealCard({ deal, index, onHide }: { deal: Deal; index: number; onHide: (id: string) => void }) {
   const endingSoon = isEndingSoon(deal.expiry_date);
 
   return (
@@ -125,6 +127,17 @@ function DealCard({ deal, index }: { deal: Deal; index: number }) {
             }}
           >
             View deal →
+          </button>
+          <button
+            onClick={() => onHide(deal.id)}
+            aria-label="Hide deal"
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: '#C9C0BE', padding: 4,
+              minWidth: 36, minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >
+            <X size={14} />
           </button>
         </div>
       </div>
@@ -236,6 +249,7 @@ export default function DealsPage() {
   const [loading, setLoading]         = useState(true);
   const [refreshing, setRefreshing]   = useState(false);
   const [activeCategory, setActiveCategory] = useState<Category>('All');
+  const [hiddenIds, setHiddenIds]     = useState<Set<string>>(new Set());
 
   const fetchDeals = useCallback(async () => {
     const { data } = await supabase
@@ -245,7 +259,19 @@ export default function DealsPage() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { fetchDeals(); }, [fetchDeals]);
+  useEffect(() => {
+    fetchDeals();
+    try {
+      const saved = localStorage.getItem(HIDDEN_DEALS_KEY);
+      if (saved) setHiddenIds(new Set(JSON.parse(saved)));
+    } catch { /* ignore */ }
+  }, [fetchDeals]);
+
+  const hideDeal = (id: string) => {
+    const next = new Set(hiddenIds).add(id);
+    setHiddenIds(next);
+    try { localStorage.setItem(HIDDEN_DEALS_KEY, JSON.stringify(Array.from(next))); } catch { /* ignore */ }
+  };
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -253,9 +279,8 @@ export default function DealsPage() {
     setRefreshing(false);
   };
 
-  const filtered = activeCategory === 'All'
-    ? deals
-    : deals.filter(d => d.category === activeCategory);
+  const filtered = (activeCategory === 'All' ? deals : deals.filter(d => d.category === activeCategory))
+    .filter(d => !hiddenIds.has(d.id));
 
   return (
     <>
@@ -341,7 +366,7 @@ export default function DealsPage() {
           ) : (
             <AnimatePresence mode="popLayout">
               {filtered.map((deal, i) => (
-                <DealCard key={deal.id} deal={deal} index={i} />
+                <DealCard key={deal.id} deal={deal} index={i} onHide={hideDeal} />
               ))}
             </AnimatePresence>
           )}

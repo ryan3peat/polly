@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { getServiceSupabase } from '@/lib/supabaseServer';
 
 export async function GET() {
   try {
+    const supabase = getServiceSupabase();
     const { data, error } = await supabase
       .from('wardrobe_items')
       .select('*')

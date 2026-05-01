@@ -141,16 +141,6 @@ function LandingPage() {
       fontFamily: 'var(--font-dm-sans), sans-serif',
     }}>
 
-      {/* Top row — monogram */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '18px 26px 0' }}>
-        <div style={{
-          fontFamily: 'var(--font-cormorant), serif',
-          fontStyle: 'italic', fontSize: 15, color: '#2A2A2A', letterSpacing: '0.02em',
-        }}>
-          P<span style={{ color: '#C4A35A' }}>·</span>A
-        </div>
-      </div>
-
       {/* Edition strip */}
       <div style={{ textAlign: 'center', marginTop: 28, padding: '0 26px' }}>
         <div style={{ fontSize: 9.5, letterSpacing: '0.32em', textTransform: 'uppercase', color: '#C4A35A', fontWeight: 500 }}>
@@ -469,9 +459,12 @@ export default function Home() {
   const [splashComplete, setSplashComplete] = useState(false);
   const [authed, setAuthed_]               = useState(false);
   const [ready, setReady]                  = useState(false);
+  const [splashPhotos, setSplashPhotos]    = useState(PHOTOS);
 
   useEffect(() => {
     setAuthed_(isAuthed());
+    const saved = localStorage.getItem(PROFILE_PHOTO_KEY);
+    if (saved) setSplashPhotos([saved, ...PHOTOS.slice(1)] as typeof PHOTOS);
     setReady(true);
   }, []);
 
@@ -480,7 +473,7 @@ export default function Home() {
   if (!splashComplete) {
     return (
       <div style={{ position: 'fixed', inset: 0, background: '#FAF7F4' }}>
-        <SplashScreen onComplete={() => setSplashComplete(true)} photos={PHOTOS} />
+        <SplashScreen onComplete={() => setSplashComplete(true)} photos={splashPhotos} />
       </div>
     );
   }
