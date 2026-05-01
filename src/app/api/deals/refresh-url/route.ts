@@ -13,6 +13,46 @@ interface DealRow {
   source_name: string;
 }
 
+// Bracket-balanced JSON array extractor — tolerates surrounding text from Claude
+function extractJsonArray(text: string): unknown[] | null {
+  const stripped = text
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```\s*$/i, '')
+    .trim();
+
+  try {
+    const p = JSON.parse(stripped);
+    return Array.isArray(p) ? p : null;
+  } catch { /* fall through */ }
+
+  const start = stripped.indexOf('[');
+  if (start === -1) return null;
+
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+
+  for (let i = start; i < stripped.length; i++) {
+    const ch = stripped[i];
+    if (escape)                  { escape = false; continue; }
+    if (ch === '\\' && inString) { escape = true;  continue; }
+    if (ch === '"')              { inString = !inString; continue; }
+    if (inString)                continue;
+    if (ch === '[') depth++;
+    if (ch === ']') {
+      depth--;
+      if (depth === 0) {
+        try { return JSON.parse(stripped.slice(start, i + 1)) as unknown[]; }
+        catch { return null; }
+      }
+    }
+  }
+  return null;
+}
+
+// Minimum useful content length — below this the page likely didn't render
+const MIN_CONTENT_LENGTH = 400;
+
 function buildPrompt(content: string, sourceUrl: string, category: string): string {
   return `You are curating high-value deals for a Hong Kong lifestyle app. Apply a strict quality filter — only extract deals that clearly meet at least one of these criteria:
 1. Buy 1 get 1 free (or equivalent: 2-for-1, complimentary dish/item)
@@ -49,6 +89,14 @@ export async function POST(req: NextRequest) {
 
     const content = await fetchPageContent(url);
 
+    // Detect JS-rendered or blocked pages that Jina couldn't read
+    if (content.trim().length < MIN_CONTENT_LENGTH) {
+      return NextResponse.json({
+        success: false,
+        error: "This site couldn't be read — it may require JavaScript to load. Try a different deals page.",
+      }, { status: 422 });
+    }
+
     const message = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 2048,
@@ -57,20 +105,13 @@ export async function POST(req: NextRequest) {
     });
 
     const raw = message.content[0].type === 'text' ? message.content[0].text : '';
-    const cleaned = raw
-      .replace(/^```(?:json)?\s*/i, '')
-      .replace(/\s*```\s*$/i, '')
-      .trim();
+    const parsed = extractJsonArray(raw);
 
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(cleaned);
-    } catch {
-      return NextResponse.json({ success: false, error: 'Claude returned unparseable JSON' }, { status: 500 });
-    }
-
-    if (!Array.isArray(parsed)) {
-      return NextResponse.json({ success: false, error: 'Claude did not return an array' }, { status: 500 });
+    if (parsed === null) {
+      return NextResponse.json({
+        success: false,
+        error: "This page's content couldn't be understood. Try a different deals page.",
+      }, { status: 422 });
     }
 
     const deals: DealRow[] = (parsed as Record<string, unknown>[])
@@ -90,16 +131,20 @@ export async function POST(req: NextRequest) {
         source_name: sourceName,
       }));
 
-    let inserted = 0;
-    if (deals.length > 0) {
-      const { data, error } = await supabase.from('deals').insert(deals).select('id');
-      if (error) throw error;
-      inserted = data?.length ?? 0;
+    if (deals.length === 0) {
+      return NextResponse.json({
+        success: false,
+        error: 'No qualifying deals were found on this page. The page may require a login, or there are currently no deals that meet the criteria (buy-one-get-one, free bottle of wine, or 20%+ off).',
+      }, { status: 422 });
     }
+
+    const { data, error } = await supabase.from('deals').insert(deals).select('id');
+    if (error) throw error;
+    const inserted = data?.length ?? 0;
 
     return NextResponse.json({ success: true, inserted });
   } catch (err) {
     console.error('[deals/refresh-url]', err);
-    return NextResponse.json({ success: false, error: String(err) }, { status: 500 });
+    return NextResponse.json({ success: false, error: 'Something went wrong. Please try again.' }, { status: 500 });
   }
 }

@@ -13,6 +13,7 @@ const SOURCES = [
   { name: 'HSBC Red Hot Offers', url: 'https://www.redhotoffers.hsbc.com.hk/en/latest-offers/red-hot-dining-special/2026-q2-dining/japanese-and-asian-cuisine/', category: 'Dining', strict: true },
   { name: 'HSBC Red Hot Offers', url: 'https://www.redhotoffers.hsbc.com.hk/en/latest-offers/red-hot-dining-special/2026-q2-dining/chinese-cuisine/', category: 'Dining', strict: true },
   { name: 'Cathay Dining', url: 'https://dining.cathaypacific.com/en_HK.html', category: 'Dining', strict: false },
+  { name: 'DiningCity', url: 'https://www.diningcity.hk/en/hongkong/guides/1453/deals', category: 'Dining', strict: false },
 ];
 
 function buildStrictPrompt(content, sourceUrl, category) {
@@ -128,7 +129,18 @@ async function scrapeUrl(browser, url) {
 
   try {
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
-    await page.waitForTimeout(4000);
+
+    // DiningCity is a heavy SPA — wait for actual content cards before reading
+    if (url.includes('diningcity')) {
+      try {
+        await page.waitForSelector('.card, .deal-card, article, [class*="deal"], [class*="offer"], [class*="restaurant"]', { timeout: 15000 });
+      } catch {
+        // Selector didn't appear — still continue and read whatever loaded
+      }
+      await page.waitForTimeout(3000);
+    } else {
+      await page.waitForTimeout(4000);
+    }
 
     await page.evaluate(async () => {
       for (let i = 0; i < 6; i++) {

@@ -57,7 +57,7 @@ export default function PasswordScreen({ onSuccess }: { onSuccess: () => void })
           fontStyle: 'italic', fontSize: 18, color: '#2A2A2A',
           letterSpacing: '0.04em', marginBottom: 32,
         }}>
-          P<span style={{ color: '#C4A35A' }}>·</span>A
+          P<span style={{ color: '#C4A35A' }}>·</span>C
         </div>
 
         <h1 style={{

@@ -17,6 +17,7 @@ interface WardrobeItem {
   wear_count: number;
   last_worn_at: string | null;
   created_at: string;
+  image_url?: string | null;
 }
 
 interface Suggestion {
@@ -75,9 +76,48 @@ function SkeletonCard() {
   );
 }
 
+// ── Lightbox ─────────────────────────────────────────────────────
+function Lightbox({ url, onClose }: { url: string; onClose: () => void }) {
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 1000,
+        background: 'rgba(0,0,0,0.88)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={url}
+        alt="Outfit"
+        onClick={e => e.stopPropagation()}
+        style={{
+          maxWidth: '96vw', maxHeight: '90dvh',
+          objectFit: 'contain', borderRadius: 12,
+        }}
+      />
+      <button
+        onClick={onClose}
+        aria-label="Close"
+        style={{
+          position: 'absolute', top: 20, right: 20,
+          background: 'rgba(255,255,255,0.15)', border: 'none',
+          borderRadius: '50%', width: 40, height: 40,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          cursor: 'pointer', color: '#FFFFFF',
+        }}
+      >
+        ✕
+      </button>
+    </div>
+  );
+}
+
 // ── Wardrobe item card ───────────────────────────────────────────
 function WardrobeCard({ item, index, onDelete }: { item: WardrobeItem; index: number; onDelete: (id: string) => void }) {
-  const [deleting, setDeleting] = useState(false);
+  const [deleting, setDeleting]     = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
   const lastWorn = item.last_worn_at
     ? new Date(item.last_worn_at).toLocaleDateString('en-HK', { day: 'numeric', month: 'short', year: 'numeric' })
     : null;
@@ -95,89 +135,113 @@ function WardrobeCard({ item, index, onDelete }: { item: WardrobeItem; index: nu
   };
 
   return (
-    <motion.div
-      className="press-card"
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, delay: index * 0.04, ease: 'easeOut' }}
-      style={{
-        display: 'flex', background: '#FFFFFF', borderRadius: 16,
-        border: '1px solid #EDD9DB', overflow: 'hidden', minHeight: 100,
-        boxShadow: '0 2px 12px rgba(0,0,0,0.05)',
-      }}
-    >
-      {/* Left emoji block */}
-      <div style={{
-        width: 56, flexShrink: 0, background: '#FAF7F4',
-        borderRadius: '16px 0 0 16px',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 24,
-      }}>
-        {CATEGORY_EMOJI[item.category] ?? '🏷️'}
-      </div>
-
-      {/* Right content */}
-      <div style={{ flex: 1, padding: '12px 14px 12px 12px', display: 'flex', flexDirection: 'column', minWidth: 0, gap: 4 }}>
-        <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 10, fontWeight: 500, color: '#7A7170' }}>
-          {item.subcategory}
-        </span>
-        <p style={{
-          fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600,
-          color: '#2A2A2A', lineHeight: 1.35, margin: 0,
-          display: '-webkit-box', WebkitLineClamp: 2,
-          WebkitBoxOrient: 'vertical', overflow: 'hidden',
-        }}>
-          {item.description}
-        </p>
-
-        {/* Colour pills */}
-        {item.colours?.length > 0 && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 2 }}>
-            {item.colours.slice(0, 4).map((colour, i) => (
-              <span key={i} style={{
-                background: '#FAF7F4', border: '1px solid #EDD9DB',
-                color: '#7A7170', fontFamily: "'DM Sans', sans-serif",
-                fontSize: 11, borderRadius: 20, padding: '2px 8px',
-              }}>
-                {colour}
-              </span>
-            ))}
+    <>
+      {lightboxOpen && item.image_url && (
+        <Lightbox url={item.image_url} onClose={() => setLightboxOpen(false)} />
+      )}
+      <motion.div
+        className="press-card"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, delay: index * 0.04, ease: 'easeOut' }}
+        style={{
+          display: 'flex', background: '#FFFFFF', borderRadius: 16,
+          border: '1px solid #EDD9DB', overflow: 'hidden', minHeight: 100,
+          boxShadow: '0 2px 12px rgba(0,0,0,0.05)',
+        }}
+      >
+        {/* Left: thumbnail or emoji */}
+        {item.image_url ? (
+          <button
+            onClick={() => setLightboxOpen(true)}
+            aria-label="View outfit photo"
+            style={{
+              width: 72, flexShrink: 0, padding: 0, border: 'none',
+              cursor: 'pointer', overflow: 'hidden',
+              borderRadius: '16px 0 0 16px', background: '#FAF7F4',
+            }}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={item.image_url}
+              alt="Outfit"
+              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+            />
+          </button>
+        ) : (
+          <div style={{
+            width: 56, flexShrink: 0, background: '#FAF7F4',
+            borderRadius: '16px 0 0 16px',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 24,
+          }}>
+            {CATEGORY_EMOJI[item.category] ?? '🏷️'}
           </div>
         )}
 
-        {/* Bottom row */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
-          <span style={{
-            background: '#FAF7F4', border: '1px solid #C4A35A',
-            color: '#C4A35A', fontFamily: "'DM Sans', sans-serif",
-            fontSize: 11, fontWeight: 600, borderRadius: 20, padding: '3px 10px', flexShrink: 0,
-          }}>
-            Worn {item.wear_count}×
+        {/* Right content */}
+        <div style={{ flex: 1, padding: '12px 14px 12px 12px', display: 'flex', flexDirection: 'column', minWidth: 0, gap: 4 }}>
+          <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 10, fontWeight: 500, color: '#7A7170' }}>
+            {item.subcategory}
           </span>
-          <span style={{
-            fontFamily: "'DM Sans', sans-serif", fontSize: 11,
-            color: lastWorn ? '#7A7170' : '#E88080',
+          <p style={{
+            fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600,
+            color: '#2A2A2A', lineHeight: 1.35, margin: 0,
+            display: '-webkit-box', WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical', overflow: 'hidden',
           }}>
-            {lastWorn ? `Last worn ${lastWorn}` : 'Never worn'}
-          </span>
-          <button
-            onClick={handleDelete}
-            disabled={deleting}
-            aria-label="Remove item"
-            style={{
-              marginLeft: 'auto', background: 'none', border: 'none',
-              cursor: deleting ? 'not-allowed' : 'pointer',
-              color: '#C9C0BE', opacity: deleting ? 0.4 : 1,
-              minWidth: 36, minHeight: 36,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              transition: 'color 0.15s',
-            }}
-          >
-            <Trash2 size={14} />
-          </button>
+            {item.description}
+          </p>
+
+          {/* Colour pills */}
+          {item.colours?.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 2 }}>
+              {item.colours.slice(0, 4).map((colour, i) => (
+                <span key={i} style={{
+                  background: '#FAF7F4', border: '1px solid #EDD9DB',
+                  color: '#7A7170', fontFamily: "'DM Sans', sans-serif",
+                  fontSize: 11, borderRadius: 20, padding: '2px 8px',
+                }}>
+                  {colour}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Bottom row */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
+            <span style={{
+              background: '#FAF7F4', border: '1px solid #C4A35A',
+              color: '#C4A35A', fontFamily: "'DM Sans', sans-serif",
+              fontSize: 11, fontWeight: 600, borderRadius: 20, padding: '3px 10px', flexShrink: 0,
+            }}>
+              Worn {item.wear_count}×
+            </span>
+            <span style={{
+              fontFamily: "'DM Sans', sans-serif", fontSize: 11,
+              color: lastWorn ? '#7A7170' : '#E88080',
+            }}>
+              {lastWorn ? `Last worn ${lastWorn}` : 'Never worn'}
+            </span>
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              aria-label="Remove item"
+              style={{
+                marginLeft: 'auto', background: 'none', border: 'none',
+                cursor: deleting ? 'not-allowed' : 'pointer',
+                color: '#C9C0BE', opacity: deleting ? 0.4 : 1,
+                minWidth: 36, minHeight: 36,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                transition: 'color 0.15s',
+              }}
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
         </div>
-      </div>
-    </motion.div>
+      </motion.div>
+    </>
   );
 }
 

@@ -210,9 +210,19 @@ function AddSourceSection({ onDealsAdded }: { onDealsAdded: () => void }) {
       />
 
       {error && (
-        <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: '#E88080', marginTop: 6, paddingLeft: 2 }}>
-          {error}
-        </p>
+        <div style={{
+          marginTop: 10, borderRadius: 10, padding: '10px 12px',
+          background: '#FFF5F5', border: '1px solid #F2C4C4',
+          display: 'flex', gap: 8, alignItems: 'flex-start',
+        }}>
+          <span style={{ fontSize: 14, flexShrink: 0, marginTop: 1 }}>⚠️</span>
+          <p style={{
+            fontFamily: "'DM Sans', sans-serif", fontSize: 13,
+            color: '#8B3A3A', lineHeight: 1.5, margin: 0,
+          }}>
+            {error}
+          </p>
+        </div>
       )}
 
       <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>

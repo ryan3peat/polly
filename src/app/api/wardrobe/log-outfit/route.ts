@@ -129,6 +129,7 @@ export async function POST(req: NextRequest) {
             description: g.description,
             colours:     g.colours,
             wear_count:  0,
+            image_url:   photo_url,
           }))
         )
         .select('id');
