@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Camera, ImageIcon, Loader2, Shirt } from 'lucide-react';
+import { Camera, ImageIcon, Loader2, Shirt, Trash2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 // ── Types ────────────────────────────────────────────────────────
@@ -76,10 +76,23 @@ function SkeletonCard() {
 }
 
 // ── Wardrobe item card ───────────────────────────────────────────
-function WardrobeCard({ item, index }: { item: WardrobeItem; index: number }) {
+function WardrobeCard({ item, index, onDelete }: { item: WardrobeItem; index: number; onDelete: (id: string) => void }) {
+  const [deleting, setDeleting] = useState(false);
   const lastWorn = item.last_worn_at
     ? new Date(item.last_worn_at).toLocaleDateString('en-HK', { day: 'numeric', month: 'short', year: 'numeric' })
     : null;
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      await fetch('/api/wardrobe/items', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: item.id }),
+      });
+      onDelete(item.id);
+    } catch { setDeleting(false); }
+  };
 
   return (
     <motion.div
@@ -147,6 +160,21 @@ function WardrobeCard({ item, index }: { item: WardrobeItem; index: number }) {
           }}>
             {lastWorn ? `Last worn ${lastWorn}` : 'Never worn'}
           </span>
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            aria-label="Remove item"
+            style={{
+              marginLeft: 'auto', background: 'none', border: 'none',
+              cursor: deleting ? 'not-allowed' : 'pointer',
+              color: '#C9C0BE', opacity: deleting ? 0.4 : 1,
+              minWidth: 36, minHeight: 36,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              transition: 'color 0.15s',
+            }}
+          >
+            <Trash2 size={14} />
+          </button>
         </div>
       </div>
     </motion.div>
@@ -339,6 +367,8 @@ function WardrobeTab({ active }: { active: boolean }) {
   const [items, setItems]     = useState<WardrobeItem[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const removeItem = (id: string) => setItems(prev => prev.filter(i => i.id !== id));
+
   const fetchItems = useCallback(async () => {
     setLoading(true);
     try {
@@ -397,7 +427,7 @@ function WardrobeTab({ active }: { active: boolean }) {
             <p style={labelStyle}>{CATEGORY_EMOJI[category]} {category}</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {categoryItems.map(item => (
-                <WardrobeCard key={item.id} item={item} index={cardIndex++} />
+                <WardrobeCard key={item.id} item={item} index={cardIndex++} onDelete={removeItem} />
               ))}
             </div>
           </div>

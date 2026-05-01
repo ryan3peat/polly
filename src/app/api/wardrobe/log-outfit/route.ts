@@ -9,6 +9,43 @@ interface Garment {
   colours: string[];
 }
 
+// Bracket-balanced JSON array extractor — tolerates surrounding text from Claude
+function extractJsonArray(text: string): unknown[] {
+  const stripped = text
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```\s*$/i, '')
+    .trim();
+
+  try {
+    const p = JSON.parse(stripped);
+    return Array.isArray(p) ? p : [];
+  } catch { /* fall through */ }
+
+  const start = stripped.indexOf('[');
+  if (start === -1) return [];
+
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+
+  for (let i = start; i < stripped.length; i++) {
+    const ch = stripped[i];
+    if (escape)                  { escape = false; continue; }
+    if (ch === '\\' && inString) { escape = true;  continue; }
+    if (ch === '"')              { inString = !inString; continue; }
+    if (inString)                continue;
+    if (ch === '[') depth++;
+    if (ch === ']') {
+      depth--;
+      if (depth === 0) {
+        try { return JSON.parse(stripped.slice(start, i + 1)) as unknown[]; }
+        catch { return []; }
+      }
+    }
+  }
+  return [];
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -40,19 +77,9 @@ export async function POST(req: NextRequest) {
       ],
     });
 
-    // Step 2 — Parse JSON response
+    // Step 2 — Parse JSON response (robust extraction)
     const raw = message.content[0].type === 'text' ? message.content[0].text : '';
-    const cleaned = raw
-      .replace(/^```(?:json)?\s*/i, '')
-      .replace(/\s*```\s*$/i, '')
-      .trim();
-
-    let garments: Garment[];
-    try {
-      garments = JSON.parse(cleaned);
-    } catch {
-      return NextResponse.json({ success: false, error: 'Claude returned unparseable JSON' });
-    }
+    const garments = extractJsonArray(raw) as Garment[];
 
     if (!Array.isArray(garments)) {
       return NextResponse.json({ success: false, error: 'Claude returned unparseable JSON' });
@@ -62,15 +89,18 @@ export async function POST(req: NextRequest) {
 
     // Step 3 — Deduplicate against existing wardrobe items per category
     const categories = Array.from(new Set(garments.map(g => g.category)));
-    const { data: existingItems } = await supabase
-      .from('wardrobe_items')
-      .select('id, category, subcategory, colours')
-      .in('category', categories);
 
-    const existing = existingItems ?? [];
+    let existing: Array<{ id: string; category: string; subcategory: string; colours: string[] }> = [];
+    if (categories.length > 0) {
+      const { data: existingItems } = await supabase
+        .from('wardrobe_items')
+        .select('id, category, subcategory, colours')
+        .in('category', categories);
+      existing = existingItems ?? [];
+    }
 
     const newGarments: Garment[] = [];
-    const matchedIds: string[] = [];
+    const matchedIds: string[]   = [];
 
     for (const garment of garments) {
       const primaryColour = garment.colours?.[0]?.toLowerCase() ?? '';
@@ -143,9 +173,9 @@ export async function POST(req: NextRequest) {
 
     // Step 7 — Return summary
     return NextResponse.json({
-      success:        true,
-      inserted:       insertedIds.length,
-      matched:        matchedIds.length,
+      success:         true,
+      inserted:        insertedIds.length,
+      matched:         matchedIds.length,
       total_in_outfit: allGarmentIds.length,
     });
 
