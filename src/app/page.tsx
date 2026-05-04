@@ -75,6 +75,7 @@ const PROFILE_PHOTO_KEY = 'polly_profile_photo';
 // ── Landing page ─────────────────────────────────────────────
 function LandingPage() {
   const router = useRouter();
+  const { userId } = useAuth();
   const today  = new Date();
   const dateStr = formatLongDate(today);
   const quote   = getDailyQuote();
