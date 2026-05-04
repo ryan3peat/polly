@@ -41,7 +41,7 @@ interface RawItem {
 interface ParsedItem {
   headline: string; summary: string;
   category: 'Celebrity' | 'Trend' | 'Shopping';
-  image_url: string; source_name: string; source_url: string;
+  image_url: string; image_urls: string[]; source_name: string; source_url: string;
 }
 
 export async function POST(req: NextRequest) {
@@ -110,11 +110,13 @@ Source URL: ${item.link}`,
         const text = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
         const parsed = JSON.parse(text);
 
+        const imgUrl = parsed.image_url ?? item.imageUrl ?? '';
         return {
           headline:    parsed.headline,
           summary:     parsed.summary,
           category:    parsed.category,
-          image_url:   parsed.image_url ?? '',
+          image_url:   imgUrl,
+          image_urls:  imgUrl ? [imgUrl] : [],
           source_name: item.source,
           source_url:  item.link,
         };
@@ -143,7 +145,8 @@ Source URL: ${item.link}`,
       const { error } = await supabase.from('style_items').insert(
         toInsert.map(item => ({
           headline: item.headline, summary: item.summary, category: item.category,
-          image_url: item.image_url, source_name: item.source_name,
+          image_url: item.image_url, image_urls: item.image_urls,
+          source_name: item.source_name,
           source_url: item.source_url, is_saved: false,
         }))
       );
