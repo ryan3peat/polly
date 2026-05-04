@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { anthropic } from '@/lib/anthropic';
 import { getServiceSupabase } from '@/lib/supabaseServer';
-import { fetchPageContent } from '@/lib/jina';
+import { extractImagesFromHtml, fetchPageText } from '@/lib/scrape';
 
 export const runtime = 'nodejs';
 
@@ -57,9 +57,11 @@ export async function POST(req: NextRequest) {
     const hostname = new URL(url).hostname.replace(/^www\./, '');
     const sourceName = hostname.split('.')[0].replace(/^./, c => c.toUpperCase());
 
-    // Fetch page content via Jina reader
-    const pageContent = await fetchPageContent(url);
-    const truncated = pageContent.slice(0, 8000);
+    // Fetch in parallel: raw HTML for images, Jina text for Claude
+    const [allImages, pageText] = await Promise.all([
+      extractImagesFromHtml(url),
+      fetchPageText(url),
+    ]);
 
     const message = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
@@ -67,31 +69,41 @@ export async function POST(req: NextRequest) {
       system: 'You are a fashion content curator. Return only valid JSON arrays, no markdown.',
       messages: [{
         role: 'user',
-        content: `Extract all distinct fashion items, outfits, or articles from this page content. For each one return a JSON object with:
+        content: `Extract all distinct fashion items, outfits, or articles from this page. For each one return a JSON object with:
 - headline: string (punchy, max 10 words)
 - summary: string (2 sentences)
-- image_urls: array of ALL image URLs you can find for this item (look for src= attributes, markdown image syntax, or any URLs ending in jpg/jpeg/png/webp/gif). Include up to 8 URLs, most relevant first. Use empty array if none found.
 - category: one of 'Celebrity', 'Trend', or 'Shopping'
 - source_url: use this URL: ${url}
 
-Return a JSON array of these objects. Page content: ${truncated}`,
+Return a JSON array of these objects. Page content: ${pageText.slice(0, 8000)}`,
       }],
     });
 
     const raw  = message.content[0].type === 'text' ? message.content[0].text : '[]';
     const parsed = extractJsonArray(raw) as Array<{
-      headline: string; summary: string; image_urls: string[];
+      headline: string; summary: string;
       category: 'Celebrity' | 'Trend' | 'Shopping'; source_url: string;
     }>;
 
     const toInsert = parsed.filter(item => item.headline && item.summary);
 
+    // Distribute images across items: if multiple items found, give each a share;
+    // if only one item, give it all images.
+    const imgsPerItem = toInsert.length <= 1
+      ? allImages
+      : allImages.slice(0, Math.ceil(allImages.length / toInsert.length));
+
     const supabase = getServiceSupabase();
     let inserted = 0;
     if (toInsert.length > 0) {
       const { error } = await supabase.from('style_items').insert(
-        toInsert.map(item => {
-          const imgs = Array.isArray(item.image_urls) ? item.image_urls.filter(Boolean) : [];
+        toInsert.map((item, i) => {
+          const imgs = toInsert.length === 1
+            ? allImages
+            : allImages.slice(
+                i * imgsPerItem.length,
+                (i + 1) * imgsPerItem.length,
+              );
           return {
             headline:      item.headline,
             summary:       item.summary,
