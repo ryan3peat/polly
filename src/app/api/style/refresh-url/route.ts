@@ -67,13 +67,20 @@ export async function POST(req: NextRequest) {
       system: 'You are a fashion content curator. Return only valid JSON arrays, no markdown.',
       messages: [{
         role: 'user',
-        content: `Extract all distinct fashion items, outfits, or articles from this page content. For each one return a JSON object with: headline (string), summary (string, 2 sentences), image_url (string or empty string), category ('Celebrity' | 'Trend' | 'Shopping'), source_url (use this URL: ${url}). Return a JSON array of these objects. Page content: ${truncated}`,
+        content: `Extract all distinct fashion items, outfits, or articles from this page content. For each one return a JSON object with:
+- headline: string (punchy, max 10 words)
+- summary: string (2 sentences)
+- image_urls: array of ALL image URLs you can find for this item (look for src= attributes, markdown image syntax, or any URLs ending in jpg/jpeg/png/webp/gif). Include up to 8 URLs, most relevant first. Use empty array if none found.
+- category: one of 'Celebrity', 'Trend', or 'Shopping'
+- source_url: use this URL: ${url}
+
+Return a JSON array of these objects. Page content: ${truncated}`,
       }],
     });
 
     const raw  = message.content[0].type === 'text' ? message.content[0].text : '[]';
     const parsed = extractJsonArray(raw) as Array<{
-      headline: string; summary: string; image_url: string;
+      headline: string; summary: string; image_urls: string[];
       category: 'Celebrity' | 'Trend' | 'Shopping'; source_url: string;
     }>;
 
@@ -83,16 +90,20 @@ export async function POST(req: NextRequest) {
     let inserted = 0;
     if (toInsert.length > 0) {
       const { error } = await supabase.from('style_items').insert(
-        toInsert.map(item => ({
-          headline:      item.headline,
-          summary:       item.summary,
-          image_url:     item.image_url ?? '',
-          category:      item.category  ?? 'Trend',
-          source_name:   sourceName,
-          source_url:    item.source_url ?? url,
-          is_saved:      false,
-          clerk_user_id: userId,
-        }))
+        toInsert.map(item => {
+          const imgs = Array.isArray(item.image_urls) ? item.image_urls.filter(Boolean) : [];
+          return {
+            headline:      item.headline,
+            summary:       item.summary,
+            image_url:     imgs[0] ?? '',
+            image_urls:    imgs.length > 0 ? imgs : null,
+            category:      item.category  ?? 'Trend',
+            source_name:   sourceName,
+            source_url:    item.source_url ?? url,
+            is_saved:      false,
+            clerk_user_id: userId,
+          };
+        })
       );
       if (error) throw new Error(error.message);
       inserted = toInsert.length;

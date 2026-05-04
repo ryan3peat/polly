@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Loader2, X, Sliders, Trash2 } from 'lucide-react';
 import { useUser } from '@clerk/nextjs';
@@ -213,6 +213,7 @@ function SkeletonCard() {
 
 // ── Feed card ────────────────────────────────────────────────────
 function StyleCard({ item, index, onImageTap }: { item: StyleItem; index: number; onImageTap: (item: StyleItem) => void }) {
+  const imageCount = (item.image_urls?.filter(Boolean).length ?? 0) || (item.image_url ? 1 : 0);
   return (
     <motion.div
       className="press-card"
@@ -232,7 +233,7 @@ function StyleCard({ item, index, onImageTap }: { item: StyleItem; index: number
           style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', borderRadius: '16px 16px 0 0' }}
           onError={e => { (e.target as HTMLImageElement).style.opacity = '0'; }}
         />
-        {/* Source badge — top left, 6px from edges */}
+        {/* Source badge — top left */}
         <div style={{
           position: 'absolute', top: 6, left: 6,
           background: '#F2D4D7', borderRadius: 999,
@@ -245,7 +246,7 @@ function StyleCard({ item, index, onImageTap }: { item: StyleItem; index: number
         }}>
           {item.source_name}
         </div>
-        {/* Category pill — top right, 6px from edges */}
+        {/* Category pill — top right */}
         <div style={{
           position: 'absolute', top: 6, right: 6,
           background: 'rgba(42,42,42,0.8)', borderRadius: 999,
@@ -259,6 +260,23 @@ function StyleCard({ item, index, onImageTap }: { item: StyleItem; index: number
         }}>
           {item.category}
         </div>
+        {/* Photo count badge — bottom right */}
+        {imageCount > 1 && (
+          <div style={{
+            position: 'absolute', bottom: 6, right: 6,
+            background: 'rgba(0,0,0,0.55)', borderRadius: 999,
+            padding: '2px 7px',
+            fontFamily: "'DM Sans', sans-serif",
+            fontSize: 10, color: '#FFFFFF',
+            display: 'flex', alignItems: 'center', gap: 3,
+          }}>
+            <svg viewBox="0 0 16 16" style={{ width: 10, height: 10, fill: '#FFFFFF' }}>
+              <rect x="1" y="4" width="10" height="8" rx="1.5" />
+              <rect x="5" y="1" width="10" height="8" rx="1.5" opacity="0.5" />
+            </svg>
+            {imageCount}
+          </div>
+        )}
       </div>
 
       <div style={{ padding: '10px 10px 12px' }}>
@@ -288,6 +306,22 @@ function StyleCard({ item, index, onImageTap }: { item: StyleItem; index: number
 function AnalyseModal({ item, onClose }: { item: StyleItem; onClose: () => void }) {
   const [analysing, setAnalysing] = useState(false);
   const [shopItems, setShopItems] = useState<string[]>([]);
+  const [activeIdx, setActiveIdx] = useState(0);
+  const scrollRef = React.useRef<HTMLDivElement>(null);
+
+  // Deduplicate and build image list
+  const images = React.useMemo(() => {
+    const all = item.image_urls?.filter(Boolean) ?? [];
+    if (all.length > 0) return [...new Set(all)];
+    return item.image_url ? [item.image_url] : [];
+  }, [item]);
+
+  const handleScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const idx = Math.round(el.scrollLeft / el.clientWidth);
+    setActiveIdx(idx);
+  };
 
   const handleAnalyse = async () => {
     setAnalysing(true);
@@ -295,7 +329,7 @@ function AnalyseModal({ item, onClose }: { item: StyleItem; onClose: () => void 
       const res = await fetch('/api/style/analyse-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image_url: item.image_url }),
+        body: JSON.stringify({ image_url: images[activeIdx] ?? item.image_url }),
       });
       const data = await res.json();
       setShopItems(data.items ?? []);
@@ -318,21 +352,65 @@ function AnalyseModal({ item, onClose }: { item: StyleItem; onClose: () => void 
         <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0 4px', flexShrink: 0 }}>
           <div style={handle} />
         </div>
-        <button onClick={onClose} style={{ position: 'absolute', top: 16, right: 16, background: 'none', border: 'none', cursor: 'pointer', color: '#7A7170', minWidth: 44, minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <button onClick={onClose} style={{ position: 'absolute', top: 16, right: 16, background: 'none', border: 'none', cursor: 'pointer', color: '#7A7170', minWidth: 44, minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1 }}>
           <X size={20} />
         </button>
 
-        {/* Full image — contain so nothing is cropped regardless of image shape */}
-        <div style={{
-          background: '#2A2A2A', overflow: 'hidden', flexShrink: 0,
-          maxHeight: '52dvh',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <img
-            src={item.image_url}
-            alt={item.headline}
-            style={{ width: '100%', height: 'auto', maxHeight: '52dvh', objectFit: 'contain', display: 'block' }}
-          />
+        {/* Swipeable image gallery */}
+        <div style={{ position: 'relative', background: '#2A2A2A', flexShrink: 0 }}>
+          <div
+            ref={scrollRef}
+            onScroll={handleScroll}
+            style={{
+              display: 'flex',
+              overflowX: 'auto',
+              scrollSnapType: 'x mandatory',
+              scrollBehavior: 'smooth',
+              WebkitOverflowScrolling: 'touch',
+              maxHeight: '52dvh',
+              scrollbarWidth: 'none',
+            }}
+          >
+            <style>{`.gallery-scroll::-webkit-scrollbar { display: none; }`}</style>
+            {images.map((src, i) => (
+              <div
+                key={i}
+                style={{
+                  flexShrink: 0, width: '100%',
+                  scrollSnapAlign: 'start',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  maxHeight: '52dvh',
+                }}
+              >
+                <img
+                  src={src}
+                  alt={`${item.headline} ${i + 1}`}
+                  style={{ width: '100%', height: 'auto', maxHeight: '52dvh', objectFit: 'contain', display: 'block' }}
+                  onError={e => { (e.target as HTMLImageElement).parentElement!.style.display = 'none'; }}
+                />
+              </div>
+            ))}
+          </div>
+
+          {/* Dot indicators */}
+          {images.length > 1 && (
+            <div style={{
+              position: 'absolute', bottom: 10, left: 0, right: 0,
+              display: 'flex', justifyContent: 'center', gap: 5,
+            }}>
+              {images.map((_, i) => (
+                <div
+                  key={i}
+                  style={{
+                    width: activeIdx === i ? 16 : 6, height: 6,
+                    borderRadius: 999,
+                    background: activeIdx === i ? '#FFFFFF' : 'rgba(255,255,255,0.45)',
+                    transition: 'width 0.2s',
+                  }}
+                />
+              ))}
+            </div>
+          )}
         </div>
 
         <div style={{ padding: '20px 20px 40px', display: 'flex', flexDirection: 'column', gap: 16 }}>

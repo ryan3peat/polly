@@ -2,6 +2,7 @@ export interface StyleItem {
   id: string;
   headline: string;
   image_url: string;
+  image_urls?: string[];
   summary: string;
   source_name: string;
   source_url: string;
