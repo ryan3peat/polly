@@ -163,7 +163,16 @@ function LandingPage() {
   }
 
   useEffect(() => {
-    // Try to get the user's location, then fetch today's brief
+    // Restore from cache immediately so navigating back feels instant
+    const dateStr = today.toDateString();
+    try {
+      const ct = localStorage.getItem(`polly_brief_today_${dateStr}`);
+      if (ct) setTodayBrief(JSON.parse(ct));
+      const cm = localStorage.getItem(`polly_brief_tomorrow_${dateStr}`);
+      if (cm) setTomorrowBrief(JSON.parse(cm));
+    } catch { /* ignore */ }
+
+    // Fetch fresh only if not already cached (geolocation improves accuracy)
     function loadToday() {
       fetchBrief(0)
         .then(data => { if (data) setTodayBrief(data); else setBriefError(true); })
