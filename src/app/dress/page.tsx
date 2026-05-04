@@ -20,6 +20,14 @@ interface WardrobeItem {
   image_url?: string | null;
 }
 
+interface PreviewItem {
+  category: string;
+  subcategory: string;
+  description: string;
+  colours: string[];
+  existing_id: string | null;
+}
+
 interface Suggestion {
   outfit_name: string;
   items: WardrobeItem[];
@@ -245,15 +253,172 @@ function WardrobeCard({ item, index, onDelete }: { item: WardrobeItem; index: nu
   );
 }
 
+// ── Confirm wardrobe modal ───────────────────────────────────────
+function ConfirmModal({
+  items: initial,
+  onConfirm,
+  onCancel,
+  saving,
+}: {
+  items: PreviewItem[];
+  onConfirm: (items: PreviewItem[]) => void;
+  onCancel: () => void;
+  saving: boolean;
+}) {
+  const [list, setList] = useState<PreviewItem[]>(initial);
+  const remove = (i: number) => setList(prev => prev.filter((_, idx) => idx !== i));
+
+  return (
+    <div
+      onClick={onCancel}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 200,
+        background: 'rgba(0,0,0,0.55)',
+        display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+      }}
+    >
+      <motion.div
+        onClick={e => e.stopPropagation()}
+        initial={{ y: '100%' }} animate={{ y: 0 }} transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+        style={{
+          width: '100%', maxWidth: 480,
+          background: '#FAF7F4', borderRadius: '20px 20px 0 0',
+          padding: '20px 16px 40px', maxHeight: '80dvh',
+          display: 'flex', flexDirection: 'column',
+        }}
+      >
+        {/* Handle */}
+        <div style={{ width: 36, height: 4, borderRadius: 2, background: '#EDD9DB', margin: '0 auto 18px' }} />
+
+        <h2 style={{
+          fontFamily: "'Cormorant Garamond', serif", fontWeight: 400,
+          fontSize: 22, color: '#2A2A2A', marginBottom: 4,
+        }}>
+          Add to your wardrobe?
+        </h2>
+        <p style={{
+          fontFamily: "'DM Sans', sans-serif", fontStyle: 'italic',
+          fontSize: 12, color: '#7A7170', marginBottom: 16,
+        }}>
+          Remove any items you don&apos;t want to keep.
+        </p>
+
+        {/* Item list */}
+        <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10, flex: 1 }}>
+          {list.length === 0 ? (
+            <p style={{
+              fontFamily: "'DM Sans', sans-serif", fontStyle: 'italic',
+              fontSize: 13, color: '#7A7170', textAlign: 'center', padding: '20px 0',
+            }}>
+              No items remaining
+            </p>
+          ) : list.map((item, i) => (
+            <div key={i} style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              background: '#FFFFFF', borderRadius: 12,
+              border: item.existing_id ? '1px solid #EDD9DB' : '1px solid #D9BE82',
+              padding: '10px 12px',
+            }}>
+              <span style={{ fontSize: 22, flexShrink: 0 }}>
+                {CATEGORY_EMOJI[item.category] ?? '🏷️'}
+              </span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{
+                  fontFamily: "'DM Sans', sans-serif", fontSize: 12,
+                  fontWeight: 500, color: '#7A7170',
+                }}>
+                  {item.subcategory}
+                  {item.existing_id && (
+                    <span style={{
+                      marginLeft: 6, fontSize: 10, color: '#C4A35A',
+                      background: '#FAF7F4', border: '1px solid #C4A35A',
+                      borderRadius: 20, padding: '1px 6px',
+                    }}>already in wardrobe</span>
+                  )}
+                </div>
+                <div style={{
+                  fontFamily: "'DM Sans', sans-serif", fontSize: 13,
+                  color: '#2A2A2A', lineHeight: 1.35,
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>
+                  {item.description}
+                </div>
+                {item.colours?.length > 0 && (
+                  <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
+                    {item.colours.slice(0, 4).map((c, ci) => (
+                      <span key={ci} style={{
+                        fontSize: 10, color: '#7A7170',
+                        background: '#FAF7F4', border: '1px solid #EDD9DB',
+                        borderRadius: 20, padding: '1px 6px',
+                      }}>{c}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={() => remove(i)}
+                aria-label="Remove item"
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  color: '#C9C0BE', flexShrink: 0,
+                  minWidth: 36, minHeight: 36,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}
+              >
+                <Trash2 size={15} />
+              </button>
+            </div>
+          ))}
+        </div>
+
+        {/* Actions */}
+        <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
+          <button
+            onClick={onCancel}
+            disabled={saving}
+            style={{
+              flex: 1, height: 50, borderRadius: 12,
+              border: '1px solid #EDD9DB', background: '#FFFFFF',
+              fontFamily: "'DM Sans', sans-serif", fontSize: 14,
+              color: '#7A7170', cursor: 'pointer',
+            }}
+          >
+            Discard
+          </button>
+          <button
+            onClick={() => onConfirm(list)}
+            disabled={saving || list.length === 0}
+            style={{
+              flex: 2, height: 50, borderRadius: 12,
+              border: 'none', background: list.length === 0 ? '#EDD9DB' : '#C9848A',
+              fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 500,
+              color: '#FFFFFF', cursor: saving || list.length === 0 ? 'not-allowed' : 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              transition: 'background 0.15s',
+            }}
+          >
+            {saving && <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} />}
+            {saving ? 'Saving…' : `Add ${list.length} item${list.length !== 1 ? 's' : ''}`}
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 // ── LOG TAB ──────────────────────────────────────────────────────
 function LogTab() {
   const cameraRef  = useRef<HTMLInputElement>(null);
   const libraryRef = useRef<HTMLInputElement>(null);
-  const [previewUrl, setPreviewUrl]   = useState<string | null>(null);
-  const [file, setFile]               = useState<File | null>(null);
-  const [uploading, setUploading]     = useState(false);
-  const [success, setSuccess]         = useState<string | null>(null);
-  const [error, setError]             = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl]     = useState<string | null>(null);
+  const [file, setFile]                 = useState<File | null>(null);
+  const [photoUrl, setPhotoUrl]         = useState<string | null>(null);  // uploaded storage URL
+  const [worn_at, setWornAt]            = useState<string>('');
+  const [analysing, setAnalysing]       = useState(false);
+  const [saving, setSaving]             = useState(false);
+  const [confirmItems, setConfirmItems] = useState<PreviewItem[] | null>(null);
+  const [success, setSuccess]           = useState<string | null>(null);
+  const [error, setError]               = useState<string | null>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -264,165 +429,164 @@ function LogTab() {
     setPreviewUrl(URL.createObjectURL(f));
   };
 
-  const handleLog = async () => {
+  const reset = () => {
+    setPreviewUrl(null); setFile(null); setPhotoUrl(null);
+    setConfirmItems(null); setSuccess(null); setError(null);
+    if (cameraRef.current)  cameraRef.current.value  = '';
+    if (libraryRef.current) libraryRef.current.value = '';
+  };
+
+  // Step 1: upload photo + ask Claude to analyse
+  const handleAnalyse = async () => {
     if (!file) return;
-    setUploading(true);
+    setAnalysing(true);
     setError(null);
-    setSuccess(null);
 
     try {
-      // Upload to Supabase storage
       const path = `${Date.now()}-${file.name.replace(/\s/g, '-')}`;
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('wardrobe-photos')
         .upload(path, file, { contentType: file.type, upsert: true });
-
       if (uploadError) throw new Error(uploadError.message);
 
-      const { data: urlData } = supabase.storage
-        .from('wardrobe-photos')
-        .getPublicUrl(uploadData.path);
+      const { data: urlData } = supabase.storage.from('wardrobe-photos').getPublicUrl(uploadData.path);
+      const url = urlData.publicUrl;
+      const today = new Date().toISOString().split('T')[0];
 
-      const photo_url = urlData.publicUrl;
-      const worn_at = new Date().toISOString().split('T')[0];
+      setPhotoUrl(url);
+      setWornAt(today);
 
       const res = await fetch('/api/wardrobe/log-outfit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ photo_url, worn_at }),
+        body: JSON.stringify({ photo_url: url, worn_at: today, preview: true }),
       });
       const data = await res.json();
-      if (!data.success) throw new Error(data.error ?? 'Failed to log outfit');
+      if (!data.success) throw new Error(data.error ?? 'Failed to analyse outfit');
 
-      const total = data.inserted + data.matched;
-      setSuccess(`Found ${total} item${total !== 1 ? 's' : ''} in your wardrobe`);
+      if (!data.items || data.items.length === 0) {
+        setError('No clothing items were detected. Try a clearer photo.');
+        return;
+      }
 
-      setTimeout(() => {
-        setPreviewUrl(null);
-        setFile(null);
-        setSuccess(null);
-        if (cameraRef.current)  cameraRef.current.value  = '';
-        if (libraryRef.current) libraryRef.current.value = '';
-      }, 3000);
-
+      setConfirmItems(data.items);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
     } finally {
-      setUploading(false);
+      setAnalysing(false);
+    }
+  };
+
+  // Step 2: save the user-approved items
+  const handleConfirm = async (approved: PreviewItem[]) => {
+    if (!photoUrl) return;
+    setSaving(true);
+    try {
+      const res = await fetch('/api/wardrobe/log-outfit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ photo_url: photoUrl, worn_at, confirmed_items: approved }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error ?? 'Failed to save');
+
+      setConfirmItems(null);
+      setSuccess(`${approved.length} item${approved.length !== 1 ? 's' : ''} added to your wardrobe`);
+      setTimeout(reset, 2800);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong');
+      setConfirmItems(null);
+    } finally {
+      setSaving(false);
     }
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {/* Hidden inputs — camera and library */}
-      <input
-        ref={cameraRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        style={{ display: 'none' }}
-        onChange={handleFileChange}
-      />
-      <input
-        ref={libraryRef}
-        type="file"
-        accept="image/*"
-        style={{ display: 'none' }}
-        onChange={handleFileChange}
-      />
+    <>
+      {confirmItems && (
+        <ConfirmModal
+          items={confirmItems}
+          onConfirm={handleConfirm}
+          onCancel={() => { setConfirmItems(null); }}
+          saving={saving}
+        />
+      )}
 
-      {/* Upload area */}
-      {!previewUrl ? (
-        <div style={{
-          border: '1.5px dashed #EDD9DB', borderRadius: 16,
-          padding: '24px 20px', background: '#FFFFFF',
-          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16,
-        }}>
-          <span style={{
-            fontFamily: "'DM Sans', sans-serif", fontStyle: 'italic',
-            fontSize: 13, color: '#7A7170',
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {/* Hidden inputs */}
+        <input ref={cameraRef} type="file" accept="image/*" capture="environment"
+          style={{ display: 'none' }} onChange={handleFileChange} />
+        <input ref={libraryRef} type="file" accept="image/*"
+          style={{ display: 'none' }} onChange={handleFileChange} />
+
+        {/* Upload area */}
+        {!previewUrl ? (
+          <div style={{
+            border: '1.5px dashed #EDD9DB', borderRadius: 16,
+            padding: '24px 20px', background: '#FFFFFF',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16,
           }}>
-            Add today&apos;s outfit
-          </span>
-          <div style={{ display: 'flex', gap: 10, width: '100%' }}>
-            <button
-              onClick={() => cameraRef.current?.click()}
-              style={{
+            <span style={{ fontFamily: "'DM Sans', sans-serif", fontStyle: 'italic', fontSize: 13, color: '#7A7170' }}>
+              Add today&apos;s outfit
+            </span>
+            <div style={{ display: 'flex', gap: 10, width: '100%' }}>
+              <button onClick={() => cameraRef.current?.click()} style={{
                 flex: 1, height: 52, borderRadius: 12, border: '1px solid #EDD9DB',
                 background: '#FAF7F4', cursor: 'pointer',
                 display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6,
-              }}
-            >
-              <Camera size={20} color="#C9848A" strokeWidth={1.5} />
-              <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 11, color: '#7A7170' }}>
-                Take photo
-              </span>
-            </button>
-            <button
-              onClick={() => libraryRef.current?.click()}
-              style={{
+              }}>
+                <Camera size={20} color="#C9848A" strokeWidth={1.5} />
+                <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 11, color: '#7A7170' }}>Take photo</span>
+              </button>
+              <button onClick={() => libraryRef.current?.click()} style={{
                 flex: 1, height: 52, borderRadius: 12, border: '1px solid #EDD9DB',
                 background: '#FAF7F4', cursor: 'pointer',
                 display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6,
+              }}>
+                <ImageIcon size={20} color="#C9848A" strokeWidth={1.5} />
+                <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 11, color: '#7A7170' }}>Choose photo</span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div onClick={() => libraryRef.current?.click()}
+              style={{ cursor: 'pointer', borderRadius: 12, overflow: 'hidden', maxHeight: 300 }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={previewUrl} alt="Outfit preview"
+                style={{ width: '100%', maxHeight: 300, objectFit: 'cover', display: 'block' }} />
+            </div>
+            <button
+              onClick={handleAnalyse}
+              disabled={analysing}
+              style={{
+                width: '100%', height: 52, borderRadius: 12,
+                background: '#C9848A', color: '#FFFFFF', border: 'none',
+                fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 500,
+                cursor: analysing ? 'not-allowed' : 'pointer',
+                opacity: analysing ? 0.7 : 1,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                transition: 'opacity 0.2s',
               }}
             >
-              <ImageIcon size={20} color="#C9848A" strokeWidth={1.5} />
-              <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 11, color: '#7A7170' }}>
-                Choose photo
-              </span>
+              {analysing && <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />}
+              {analysing ? 'Analysing outfit…' : 'Log this outfit'}
             </button>
           </div>
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div
-            onClick={() => libraryRef.current?.click()}
-            style={{ cursor: 'pointer', borderRadius: 12, overflow: 'hidden', maxHeight: 300 }}
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={previewUrl}
-              alt="Outfit preview"
-              style={{ width: '100%', maxHeight: 300, objectFit: 'cover', display: 'block' }}
-            />
-          </div>
+        )}
 
-          <button
-            onClick={handleLog}
-            disabled={uploading}
-            style={{
-              width: '100%', height: 52, borderRadius: 12,
-              background: '#C9848A', color: '#FFFFFF', border: 'none',
-              fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 500,
-              cursor: uploading ? 'not-allowed' : 'pointer',
-              opacity: uploading ? 0.7 : 1,
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              transition: 'opacity 0.2s',
-            }}
-          >
-            {uploading && <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />}
-            {uploading ? 'Analysing outfit…' : 'Log this outfit'}
-          </button>
-        </div>
-      )}
-
-      {success && (
-        <p style={{
-          fontFamily: "'DM Sans', sans-serif", fontStyle: 'italic',
-          fontSize: 13, color: '#7A7170', textAlign: 'center',
-        }}>
-          {success}
-        </p>
-      )}
-      {error && (
-        <p style={{
-          fontFamily: "'DM Sans', sans-serif",
-          fontSize: 13, color: '#E88080', textAlign: 'center',
-        }}>
-          {error}
-        </p>
-      )}
-    </div>
+        {success && (
+          <p style={{ fontFamily: "'DM Sans', sans-serif", fontStyle: 'italic', fontSize: 13, color: '#7A7170', textAlign: 'center' }}>
+            {success}
+          </p>
+        )}
+        {error && (
+          <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: '#E88080', textAlign: 'center' }}>
+            {error}
+          </p>
+        )}
+      </div>
+    </>
   );
 }
 
@@ -475,8 +639,8 @@ function WardrobeTab({ active }: { active: boolean }) {
     );
   }
 
-  // Group by category (preserving API sort order within each group)
-  const groups = items.reduce<Record<string, WardrobeItem[]>>((acc, item) => {
+  // Group by category — Jewellery excluded (too many duplicates)
+  const groups = items.filter(i => i.category !== 'Jewellery').reduce<Record<string, WardrobeItem[]>>((acc, item) => {
     if (!acc[item.category]) acc[item.category] = [];
     acc[item.category].push(item);
     return acc;
