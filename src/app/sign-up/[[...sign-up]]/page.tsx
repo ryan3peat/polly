@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { SignUp } from '@clerk/nextjs';
 
 const clerkAppearance = {
@@ -50,6 +51,7 @@ const clerkAppearance = {
 };
 
 export default function SignUpPage() {
+  const router = useRouter();
   return (
     <div
       style={{
@@ -102,6 +104,17 @@ export default function SignUpPage() {
       />
 
       <SignUp appearance={clerkAppearance} />
+
+      <button
+        onClick={() => router.push('/sign-in')}
+        style={{
+          marginTop: 20, background: 'none', border: 'none',
+          fontFamily: "'DM Sans', sans-serif", fontSize: 13,
+          color: '#7A7170', cursor: 'pointer', textDecoration: 'underline',
+        }}
+      >
+        ← Back to Sign In
+      </button>
     </div>
   );
 }
