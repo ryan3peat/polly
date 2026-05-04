@@ -3,6 +3,7 @@ import Parser from 'rss-parser';
 import { anthropic } from '@/lib/anthropic';
 import { getServiceSupabase } from '@/lib/supabaseServer';
 import { STYLE_FEEDS } from '@/lib/styleSources';
+import { extractImagesFromHtml } from '@/lib/scrape';
 
 const parser = new Parser({
   customFields: {
@@ -85,38 +86,41 @@ export async function POST(req: NextRequest) {
     // ── Step 2: Keyword filter ─────────────────────────────────
     const filtered = rawItems.filter(item => isRelevant(item.title));
 
-    // ── Step 3: Claude enrichment ──────────────────────────────
+    // ── Step 3: Claude enrichment + HTML image extraction (parallel) ──
     const enriched = await Promise.allSettled(
       filtered.map(async (item): Promise<ParsedItem> => {
-        const message = await anthropic.messages.create({
-          model: 'claude-haiku-4-5-20251001',
-          max_tokens: 300,
-          system: 'You are a fashion content curator. Return only valid JSON, no markdown, no explanation.',
-          messages: [{
-            role: 'user',
-            content: `Here is a fashion article. Extract the key information and return a JSON object with these exact fields:
+        const [message, htmlImages] = await Promise.all([
+          anthropic.messages.create({
+            model: 'claude-haiku-4-5-20251001',
+            max_tokens: 300,
+            system: 'You are a fashion content curator. Return only valid JSON, no markdown, no explanation.',
+            messages: [{
+              role: 'user',
+              content: `Here is a fashion article. Extract the key information and return a JSON object with these exact fields:
 - headline: string (punchy rewritten headline, max 10 words)
 - summary: string (2 sentences max, what the article is about, focus on the fashion/outfit angle)
 - category: one of exactly 'Celebrity', 'Trend', or 'Shopping'
-- image_url: string (use this image if valid, otherwise empty string: ${item.imageUrl})
 
 Article title: ${item.title}
 Article content: ${item.content}
 Source URL: ${item.link}`,
-          }],
-        });
+            }],
+          }),
+          extractImagesFromHtml(item.link),
+        ]);
 
         const raw  = message.content[0].type === 'text' ? message.content[0].text : '';
         const text = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
         const parsed = JSON.parse(text);
 
-        const imgUrl = parsed.image_url ?? item.imageUrl ?? '';
+        // Prefer HTML-scraped images; fall back to RSS metadata image
+        const imgs = htmlImages.length > 0 ? htmlImages : (item.imageUrl ? [item.imageUrl] : []);
         return {
           headline:    parsed.headline,
           summary:     parsed.summary,
           category:    parsed.category,
-          image_url:   imgUrl,
-          image_urls:  imgUrl ? [imgUrl] : [],
+          image_url:   imgs[0] ?? '',
+          image_urls:  imgs,
           source_name: item.source,
           source_url:  item.link,
         };
