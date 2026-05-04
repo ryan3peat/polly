@@ -388,7 +388,7 @@ function AnalyseModal({ item, onClose }: { item: StyleItem; onClose: () => void 
               scrollbarWidth: 'none',
             }}
           >
-            <style>{`.gallery-scroll::-webkit-scrollbar { display: none; }`}</style>
+            <style>{`div::-webkit-scrollbar { display: none; }`}</style>
             {images.map((src, i) => (
               <div
                 key={i}
@@ -408,6 +408,46 @@ function AnalyseModal({ item, onClose }: { item: StyleItem; onClose: () => void 
               </div>
             ))}
           </div>
+
+          {/* Prev / Next arrow buttons (visible when multiple images) */}
+          {images.length > 1 && activeIdx > 0 && (
+            <button
+              onClick={() => {
+                const el = scrollRef.current;
+                if (el) el.scrollTo({ left: (activeIdx - 1) * el.clientWidth, behavior: 'smooth' });
+              }}
+              style={{
+                position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)',
+                width: 36, height: 36, borderRadius: '50%',
+                background: 'rgba(0,0,0,0.45)', border: 'none',
+                color: '#FFFFFF', fontSize: 18, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                zIndex: 2,
+              }}
+              aria-label="Previous image"
+            >
+              ‹
+            </button>
+          )}
+          {images.length > 1 && activeIdx < images.length - 1 && (
+            <button
+              onClick={() => {
+                const el = scrollRef.current;
+                if (el) el.scrollTo({ left: (activeIdx + 1) * el.clientWidth, behavior: 'smooth' });
+              }}
+              style={{
+                position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+                width: 36, height: 36, borderRadius: '50%',
+                background: 'rgba(0,0,0,0.45)', border: 'none',
+                color: '#FFFFFF', fontSize: 18, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                zIndex: 2,
+              }}
+              aria-label="Next image"
+            >
+              ›
+            </button>
+          )}
 
           {/* Dot indicators */}
           {images.length > 1 && (
