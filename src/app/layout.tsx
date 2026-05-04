@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Cormorant_Garamond, DM_Sans } from 'next/font/google';
 import './globals.css';
 import NavShell from '@/components/nav/NavShell';
+import { ClerkProvider } from '@clerk/nextjs';
 
 const cormorant = Cormorant_Garamond({
   subsets: ['latin'],
@@ -38,10 +39,12 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${cormorant.variable} ${dmSans.variable}`}>
-      <body>
-        <NavShell>{children}</NavShell>
-      </body>
-    </html>
+    <ClerkProvider>
+      <html lang="en" className={`${cormorant.variable} ${dmSans.variable}`}>
+        <body>
+          <NavShell>{children}</NavShell>
+        </body>
+      </html>
+    </ClerkProvider>
   );
 }

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Tag, Home, Shirt } from 'lucide-react';
+import { Tag, Home, Shirt, User } from 'lucide-react';
 
 function DressIcon({ size, color, strokeWidth }: { size: number; color: string; strokeWidth: number }) {
   return (
@@ -18,10 +18,11 @@ const INACTIVE = '#7A7170';
 const GOLD     = '#C4A35A';
 
 const tabs = [
-  { href: '/',       label: 'Home',  type: 'home'  as const },
-  { href: '/style',  label: 'Style', type: 'dress' as const },
-  { href: '/deals',  label: 'Deals', type: 'tag'   as const },
-  { href: '/dress',  label: 'Wardrobe', type: 'shirt' as const },
+  { href: '/',        label: 'Home',     type: 'home'    as const },
+  { href: '/style',   label: 'Style',    type: 'dress'   as const },
+  { href: '/deals',   label: 'Deals',    type: 'tag'     as const },
+  { href: '/dress',   label: 'Wardrobe', type: 'shirt'   as const },
+  { href: '/profile', label: 'Profile',  type: 'user'    as const },
 ];
 
 export default function BottomNav() {
@@ -87,6 +88,7 @@ export default function BottomNav() {
             {type === 'tag'   && <Tag   size={20} color={colour} strokeWidth={sw} />}
             {type === 'home'  && <Home  size={20} color={colour} strokeWidth={sw} />}
             {type === 'shirt' && <Shirt size={20} color={colour} strokeWidth={sw} />}
+            {type === 'user'  && <User  size={20} color={colour} strokeWidth={sw} />}
 
             <span
               style={{

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@clerk/nextjs/server';
 import { anthropic } from '@/lib/anthropic';
 import { getServiceSupabase } from '@/lib/supabaseServer';
 
@@ -58,6 +59,9 @@ const VALID_CATEGORIES = new Set(['Top', 'Bottom', 'Dress', 'Outerwear', 'Shoes'
 
 export async function POST(req: NextRequest) {
   try {
+    const { userId } = await auth();
+    if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
     const body = await req.json();
     const { photo_url, worn_at, preview, confirmed_items } = body as {
       photo_url: string;
@@ -82,6 +86,7 @@ export async function POST(req: NextRequest) {
         const { data: inserted, error: insertError } = await supabase
           .from('wardrobe_items')
           .insert(newItems.map(g => ({
+            clerk_user_id: userId,
             category:    g.category,
             subcategory: g.subcategory,
             description: g.description,
@@ -97,6 +102,7 @@ export async function POST(req: NextRequest) {
       const allIds = [...insertedIds, ...matchedIds];
 
       const { error: logError } = await supabase.from('outfit_logs').insert({
+        clerk_user_id:   userId,
         photo_url,
         worn_at:         worn_at ?? new Date().toISOString().split('T')[0],
         garment_ids:     allIds,
@@ -106,13 +112,17 @@ export async function POST(req: NextRequest) {
 
       if (allIds.length > 0) {
         const { data: currentItems } = await supabase
-          .from('wardrobe_items').select('id, wear_count').in('id', allIds);
+          .from('wardrobe_items')
+          .select('id, wear_count')
+          .in('id', allIds)
+          .eq('clerk_user_id', userId);
         if (currentItems?.length) {
           const now = new Date().toISOString();
           await Promise.all(currentItems.map((item: { id: string; wear_count: number }) =>
             supabase.from('wardrobe_items')
               .update({ last_worn_at: now, wear_count: (item.wear_count ?? 0) + 1 })
               .eq('id', item.id)
+              .eq('clerk_user_id', userId)
           ));
         }
       }
@@ -140,15 +150,18 @@ export async function POST(req: NextRequest) {
     const raw = message.content[0].type === 'text' ? message.content[0].text : '';
     const parsed = extractJsonArray(raw) as Garment[];
 
-    // Filter to valid categories only (excludes any Jewellery Claude might still return)
+    // Filter to valid categories only
     const garments = parsed.filter(g => VALID_CATEGORIES.has(g.category));
 
-    // Deduplicate against existing items
+    // Deduplicate against this user's existing items
     const categories = Array.from(new Set(garments.map(g => g.category)));
     let existing: Array<{ id: string; category: string; subcategory: string; colours: string[] }> = [];
     if (categories.length > 0) {
       const { data } = await supabase
-        .from('wardrobe_items').select('id, category, subcategory, colours').in('category', categories);
+        .from('wardrobe_items')
+        .select('id, category, subcategory, colours')
+        .in('category', categories)
+        .eq('clerk_user_id', userId);
       existing = data ?? [];
     }
 

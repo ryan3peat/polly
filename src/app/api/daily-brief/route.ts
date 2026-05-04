@@ -1,10 +1,26 @@
 import { NextResponse } from 'next/server';
+import { auth } from '@clerk/nextjs/server';
 import { anthropic } from '@/lib/anthropic';
+import { getServiceSupabase } from '@/lib/supabaseServer';
 
 export const runtime = 'nodejs';
 
 export async function GET() {
   try {
+    // Fetch user's style preference if signed in
+    const { userId } = await auth();
+    let stylePref = 'Female lawyer who loves bright colours. She pairs a bold colour with a plain neutral — e.g. cobalt blazer with white trousers, scarlet skirt with ivory blouse, emerald dress with nude heels. Always polished and court-appropriate.';
+
+    if (userId) {
+      const supabase = getServiceSupabase();
+      const { data } = await supabase
+        .from('user_profiles')
+        .select('style_pref')
+        .eq('clerk_user_id', userId)
+        .single();
+      if (data?.style_pref) stylePref = data.style_pref;
+    }
+
     // Fetch Hong Kong weather from wttr.in
     const weatherRes = await fetch('https://wttr.in/Hong+Kong?format=j1', {
       headers: { 'User-Agent': 'curl/7.68.0' },
@@ -28,7 +44,7 @@ export async function GET() {
         content: `Generate 3 outfit suggestions for today based on the weather and style profile.
 
 Weather in Hong Kong: ${tempC}°C (feels like ${feelsC}°C), ${desc}, humidity ${humidity}%
-Style profile: Female lawyer who loves bright colours. She pairs a bold colour with a plain neutral — e.g. cobalt blazer with white trousers, scarlet skirt with ivory blouse, emerald dress with nude heels. Always polished and court-appropriate.
+Style profile: ${stylePref}
 
 Return a JSON object with exactly these fields:
 - outfits: array of exactly 3 strings, each a concise outfit (max 10 words, use · as separator, e.g. "Cobalt blazer · white tailored trousers · nude heels")

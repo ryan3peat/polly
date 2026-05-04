@@ -1,25 +1,29 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { usePathname } from 'next/navigation';
+import { useEffect } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+import { useAuth } from '@clerk/nextjs';
 import BottomNav from './BottomNav';
-import PasswordScreen, { isAuthed, setAuthed } from '@/components/auth/PasswordScreen';
+
+const AUTH_PAGES = ['/', '/sign-in', '/sign-up', '/onboarding', '/onboarding-check'];
+
+function isAuthPage(pathname: string) {
+  return AUTH_PAGES.some(p => pathname === p || pathname.startsWith(p + '/'));
+}
 
 export default function NavShell({ children }: { children: React.ReactNode }) {
-  const pathname  = usePathname();
-  const showNav   = pathname !== '/';
-  const isInner   = pathname !== '/';
+  const pathname = usePathname();
+  const router   = useRouter();
+  const { isLoaded, isSignedIn } = useAuth();
 
-  const [authed, setAuthed_] = useState(true); // optimistic — avoids flash on nav
-  const [checked, setChecked] = useState(false);
+  const showNav = !isAuthPage(pathname);
 
   useEffect(() => {
-    setAuthed_(isAuthed());
-    setChecked(true);
-  }, [pathname]);
-
-  // Don't gate the home page here — it handles its own auth after splash
-  const needsGate = isInner && checked && !authed;
+    if (!isLoaded) return;
+    if (showNav && !isSignedIn) {
+      router.replace('/sign-in');
+    }
+  }, [isLoaded, isSignedIn, showNav, router]);
 
   return (
     <>
@@ -37,10 +41,7 @@ export default function NavShell({ children }: { children: React.ReactNode }) {
             : 0,
         }}
       >
-        {needsGate
-          ? <PasswordScreen onSuccess={() => { setAuthed(); setAuthed_(true); }} />
-          : children
-        }
+        {children}
       </div>
       {showNav && <BottomNav />}
     </>
