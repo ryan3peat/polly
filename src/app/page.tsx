@@ -67,6 +67,7 @@ interface DailyBrief {
   weather: { tempC: number; feelsC: number; desc: string; humidity: number };
   outfits: string[];
   weatherTip: string;
+  areaName?: string;
 }
 
 const PROFILE_PHOTO_KEY = 'polly_profile_photo';
@@ -83,11 +84,17 @@ function LandingPage() {
   const [photoUploading, setPhotoUploading] = useState(false);
   const [cropFile, setCropFile]           = useState<File | null>(null);
 
-  const [brief, setBrief]           = useState<DailyBrief | null>(null);
-  const [briefError, setBriefError] = useState(false);
+  const [todayBrief, setTodayBrief]       = useState<DailyBrief | null>(null);
+  const [tomorrowBrief, setTomorrowBrief] = useState<DailyBrief | null>(null);
+  const [viewDay, setViewDay]             = useState<'today' | 'tomorrow'>('today');
+  const [tomorrowLoading, setTomorrowLoading] = useState(false);
+  const [briefError, setBriefError]       = useState(false);
+  const coords = useRef<{ lat: number; lon: number } | null>(null);
+
+  const brief = viewDay === 'today' ? todayBrief : tomorrowBrief;
 
   useEffect(() => {
-    // Show cached value instantly, then sync from Supabase
+    // Show cached profile photo instantly, then sync from Supabase
     const cached = localStorage.getItem(PROFILE_PHOTO_KEY);
     if (cached) setProfilePhoto(cached);
 
@@ -124,38 +131,70 @@ function LandingPage() {
       setProfilePhoto(newUrl);
       localStorage.setItem(PROFILE_PHOTO_KEY, newUrl);
 
-      // Persist to Supabase so all devices stay in sync
       await fetch('/api/profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: newUrl }),
       });
-    } catch { /* silently fail — keep existing photo */ }
-    finally {
-      setPhotoUploading(false);
-    }
+    } catch { /* silently fail */ }
+    finally { setPhotoUploading(false); }
   };
 
-  useEffect(() => {
-    const cacheKey = `polly_brief_${today.toDateString()}`;
+  async function fetchBrief(day: 0 | 1): Promise<DailyBrief | null> {
+    const dateStr = today.toDateString();
+    const cacheKey = `polly_brief_${day === 0 ? 'today' : 'tomorrow'}_${dateStr}`;
     try {
-      const cached = localStorage.getItem(cacheKey);
-      if (cached) { setBrief(JSON.parse(cached)); return; }
+      const hit = localStorage.getItem(cacheKey);
+      if (hit) return JSON.parse(hit) as DailyBrief;
     } catch { /* ignore */ }
 
-    fetch('/api/daily-brief')
-      .then(r => r.json())
-      .then(data => {
-        if (data.weather) {
-          setBrief(data);
-          try { localStorage.setItem(cacheKey, JSON.stringify(data)); } catch { /* ignore */ }
-        } else {
-          setBriefError(true);
-        }
-      })
-      .catch(() => setBriefError(true));
+    const params = new URLSearchParams({ day: String(day) });
+    if (coords.current) {
+      params.set('lat', String(coords.current.lat));
+      params.set('lon', String(coords.current.lon));
+    }
+
+    const data = await fetch(`/api/daily-brief?${params}`).then(r => r.json());
+    if (data.weather) {
+      try { localStorage.setItem(cacheKey, JSON.stringify(data)); } catch { /* ignore */ }
+      return data as DailyBrief;
+    }
+    return null;
+  }
+
+  useEffect(() => {
+    // Try to get the user's location, then fetch today's brief
+    function loadToday() {
+      fetchBrief(0)
+        .then(data => { if (data) setTodayBrief(data); else setBriefError(true); })
+        .catch(() => setBriefError(true));
+    }
+
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          coords.current = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+          loadToday();
+        },
+        () => loadToday(), // permission denied — fetch without coords (wttr.in uses IP)
+        { timeout: 5000 },
+      );
+    } else {
+      loadToday();
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function handleViewTomorrow() {
+    setViewDay('tomorrow');
+    if (tomorrowBrief) return;
+    setTomorrowLoading(true);
+    try {
+      const data = await fetchBrief(1);
+      if (data) setTomorrowBrief(data);
+    } catch { /* ignore */ }
+    finally { setTomorrowLoading(false); }
+  }
 
   const iconStroke: React.CSSProperties = {
     width: 22, height: 22, stroke: '#C9848A', fill: 'none', strokeWidth: 1.2,
@@ -294,11 +333,37 @@ function LandingPage() {
             borderBottom: '1px solid #EDD9DB',
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           }}>
-            <div>
-              <div style={{ fontSize: 9.5, letterSpacing: '0.28em', textTransform: 'uppercase', color: '#C4A35A', fontWeight: 500, marginBottom: 6 }}>
-                Hong Kong · Today
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <div style={{ fontSize: 9.5, letterSpacing: '0.28em', textTransform: 'uppercase', color: '#C4A35A', fontWeight: 500 }}>
+                  {brief?.areaName || 'Your Location'} · {viewDay === 'today' ? 'Today' : 'Tomorrow'}
+                </div>
+                {/* Today / Tomorrow toggle */}
+                <div style={{ display: 'flex', gap: 4 }}>
+                  {(['today', 'tomorrow'] as const).map((day) => (
+                    <button
+                      key={day}
+                      onClick={() => {
+                        if (day === 'tomorrow') handleViewTomorrow();
+                        else setViewDay('today');
+                      }}
+                      style={{
+                        fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase',
+                        fontFamily: 'var(--font-dm-sans), sans-serif',
+                        padding: '3px 9px', borderRadius: 999, border: 'none',
+                        cursor: 'pointer',
+                        background: viewDay === day ? '#C9848A' : 'transparent',
+                        color: viewDay === day ? '#FFFFFF' : '#7A7170',
+                        fontWeight: viewDay === day ? 500 : 400,
+                        transition: 'background 0.15s, color 0.15s',
+                      }}
+                    >
+                      {day === 'today' ? 'Today' : 'Tomorrow'}
+                    </button>
+                  ))}
+                </div>
               </div>
-              {brief ? (
+              {(brief && !(viewDay === 'tomorrow' && tomorrowLoading)) ? (
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
                   <span style={{ fontFamily: 'var(--font-cormorant), serif', fontSize: 44, fontWeight: 400, lineHeight: 1, color: '#2A2A2A' }}>
                     {brief.weather.tempC}°
@@ -312,23 +377,23 @@ function LandingPage() {
                   <div className="skeleton-pulse" style={{ width: 80, height: 36, borderRadius: 8, background: '#F2D4D7' }} />
                 </div>
               )}
-              {brief && (
+              {(brief && !(viewDay === 'tomorrow' && tomorrowLoading)) && (
                 <div style={{ fontSize: 11, color: '#7A7170', marginTop: 4 }}>
                   Feels like {brief.weather.feelsC}° · {brief.weather.humidity}% humidity
                 </div>
               )}
             </div>
-            <div style={{ fontSize: 46, lineHeight: 1, opacity: brief ? 1 : 0.3 }}>
-              {brief ? weatherIcon(brief.weather.desc) : '🌡'}
+            <div style={{ fontSize: 46, lineHeight: 1, opacity: (brief && !(viewDay === 'tomorrow' && tomorrowLoading)) ? 1 : 0.3, marginLeft: 12 }}>
+              {(brief && !(viewDay === 'tomorrow' && tomorrowLoading)) ? weatherIcon(brief.weather.desc) : '🌡'}
             </div>
           </div>
 
           {/* Outfit suggestions */}
           <div style={{ padding: '16px 20px 20px' }}>
             <div style={{ fontSize: 9.5, letterSpacing: '0.28em', textTransform: 'uppercase', color: '#C4A35A', fontWeight: 500, marginBottom: 14 }}>
-              What to wear today
+              {viewDay === 'today' ? 'What to wear today' : 'What to wear tomorrow'}
             </div>
-            {brief ? (
+            {(brief && !(viewDay === 'tomorrow' && tomorrowLoading)) ? (
               <>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {brief.outfits.map((outfit, i) => (
