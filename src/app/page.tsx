@@ -142,7 +142,8 @@ function LandingPage() {
 
   async function fetchBrief(day: 0 | 1): Promise<DailyBrief | null> {
     const dateStr = today.toDateString();
-    const cacheKey = `polly_brief_${day === 0 ? 'today' : 'tomorrow'}_${dateStr}`;
+    const userKey = userId ?? 'anon';
+    const cacheKey = `polly_brief_${userKey}_${day === 0 ? 'today' : 'tomorrow'}_${dateStr}`;
     try {
       const hit = localStorage.getItem(cacheKey);
       if (hit) return JSON.parse(hit) as DailyBrief;
@@ -165,10 +166,11 @@ function LandingPage() {
   useEffect(() => {
     // Restore from cache immediately so navigating back feels instant
     const dateStr = today.toDateString();
+    const userKey = userId ?? 'anon';
     try {
-      const ct = localStorage.getItem(`polly_brief_today_${dateStr}`);
+      const ct = localStorage.getItem(`polly_brief_${userKey}_today_${dateStr}`);
       if (ct) setTodayBrief(JSON.parse(ct));
-      const cm = localStorage.getItem(`polly_brief_tomorrow_${dateStr}`);
+      const cm = localStorage.getItem(`polly_brief_${userKey}_tomorrow_${dateStr}`);
       if (cm) setTomorrowBrief(JSON.parse(cm));
     } catch { /* ignore */ }
 
@@ -570,7 +572,7 @@ export default function Home() {
   const [splashComplete, setSplashComplete] = useState(alreadySeen);
   const [ready, setReady]                  = useState(false);
   const [splashPhotos, setSplashPhotos]    = useState(PHOTOS);
-  const { isLoaded, isSignedIn }           = useAuth();
+  const { isLoaded, isSignedIn, userId }   = useAuth();
   const router                             = useRouter();
 
   useEffect(() => {
