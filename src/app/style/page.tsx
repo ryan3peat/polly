@@ -305,29 +305,40 @@ function StyleCard({ item, index, onImageTap }: { item: StyleItem; index: number
 // ── Analyse modal ────────────────────────────────────────────────
 function AnalyseModal({ item, onClose }: { item: StyleItem; onClose: () => void }) {
   const [analysing, setAnalysing] = useState(false);
-  const [shopItems, setShopItems] = useState<string[]>([]);
+  // Cache shop results per image index so swiping back shows previous results
+  const [shopByIdx, setShopByIdx] = useState<Record<number, string[]>>({});
+  const [hasEverSearched, setHasEverSearched] = useState(false);
   const [activeIdx, setActiveIdx] = useState(0);
   const scrollRef = React.useRef<HTMLDivElement>(null);
+  const touchStartX = React.useRef(0);
 
-  // Deduplicate and build image list
   const images = React.useMemo(() => {
     const all = item.image_urls?.filter(Boolean) ?? [];
     if (all.length > 0) return all.filter((url, i, arr) => arr.indexOf(url) === i);
     return item.image_url ? [item.image_url] : [];
   }, [item]);
 
+  const currentShopItems = shopByIdx[activeIdx] ?? [];
+
   const handleScroll = () => {
     const el = scrollRef.current;
     if (!el) return;
     const idx = Math.round(el.scrollLeft / el.clientWidth);
-    if (idx !== activeIdx) {
-      setActiveIdx(idx);
-      setShopItems([]); // clear results when image changes
-    }
+    if (idx !== activeIdx) setActiveIdx(idx);
+  };
+
+  // Swipe right on first image → close modal
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+  };
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    const dx = e.changedTouches[0].clientX - touchStartX.current;
+    if (activeIdx === 0 && dx > 60) onClose();
   };
 
   const handleAnalyse = async () => {
     setAnalysing(true);
+    setHasEverSearched(true);
     try {
       const res = await fetch('/api/style/analyse-image', {
         method: 'POST',
@@ -335,7 +346,8 @@ function AnalyseModal({ item, onClose }: { item: StyleItem; onClose: () => void 
         body: JSON.stringify({ image_url: images[activeIdx] ?? item.image_url }),
       });
       const data = await res.json();
-      setShopItems(data.items ?? []);
+      const results = data.items ?? [];
+      setShopByIdx(prev => ({ ...prev, [activeIdx]: results }));
     } catch { /* silently fail */ }
     finally { setAnalysing(false); }
   };
@@ -364,6 +376,8 @@ function AnalyseModal({ item, onClose }: { item: StyleItem; onClose: () => void 
           <div
             ref={scrollRef}
             onScroll={handleScroll}
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
             style={{
               display: 'flex',
               overflowX: 'auto',
@@ -435,20 +449,19 @@ function AnalyseModal({ item, onClose }: { item: StyleItem; onClose: () => void 
             )}
           </div>
 
-          {!analysing && (
+          {/* Show button only when this image hasn't been searched yet */}
+          {!analysing && currentShopItems.length === 0 && (
             <button
               onClick={handleAnalyse}
               style={{
                 width: '100%', minHeight: 52, borderRadius: 999,
-                background: shopItems.length > 0 ? 'transparent' : '#B5737A',
-                color: shopItems.length > 0 ? '#B5737A' : '#FFFFFF',
-                border: shopItems.length > 0 ? '1px solid #B5737A' : 'none',
+                background: '#B5737A', color: '#FFFFFF', border: 'none',
                 fontFamily: "'DM Sans', sans-serif",
-                fontSize: shopItems.length > 0 ? 14 : 16, fontWeight: 500,
+                fontSize: 16, fontWeight: 500,
                 cursor: 'pointer', letterSpacing: '0.02em',
               }}
             >
-              {shopItems.length > 0 ? '↺ Search this image' : 'Find items to shop'}
+              {hasEverSearched ? 'Search this image' : 'Find items to shop'}
             </button>
           )}
 
@@ -461,9 +474,9 @@ function AnalyseModal({ item, onClose }: { item: StyleItem; onClose: () => void 
             </div>
           )}
 
-          {shopItems.length > 0 && (
+          {currentShopItems.length > 0 && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-              {shopItems.map((chip, i) => (
+              {currentShopItems.map((chip, i) => (
                 <button
                   key={i}
                   onClick={() => window.open(`https://www.google.com/search?tbm=shop&q=${encodeURIComponent(chip)}`, '_blank')}
