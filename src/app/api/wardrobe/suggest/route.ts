@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@clerk/nextjs/server';
 import { anthropic } from '@/lib/anthropic';
 import { getServiceSupabase } from '@/lib/supabaseServer';
 
@@ -76,6 +77,9 @@ function extractJsonArray(text: string): unknown[] | null {
 
 export async function POST(req: NextRequest) {
   try {
+    const { userId } = await auth();
+    if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
     const body = await req.json();
     const { weather }: { weather: Weather } = body;
 
@@ -83,11 +87,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'weather is required' }, { status: 400 });
     }
 
-    // Step 1 — Fetch all wardrobe items
     const supabase = getServiceSupabase();
+
+    // Fetch user's style preference
+    const { data: profileData } = await supabase
+      .from('user_profiles')
+      .select('style_pref')
+      .eq('clerk_user_id', userId)
+      .single();
+    const stylePref = profileData?.style_pref
+      ?? 'a female lawyer in Hong Kong who pairs bold statement colours with clean neutrals';
+
+    // Step 1 — Fetch user's wardrobe items
     const { data, error: fetchError } = await supabase
       .from('wardrobe_items')
-      .select('*');
+      .select('*')
+      .eq('clerk_user_id', userId);
 
     if (fetchError) throw new Error(fetchError.message);
 
@@ -120,7 +135,7 @@ export async function POST(req: NextRequest) {
       messages: [
         {
           role: 'user',
-          content: `You are styling Polly, a female lawyer in Hong Kong who loves bold colours. She pairs one statement colour with a clean neutral — cobalt with white, scarlet with ivory, emerald with nude. Always polished and court-appropriate.
+          content: `You are styling a user whose personal style is: ${stylePref}.
 
 Today's weather: ${weather.tempC}°C, feels like ${weather.feelsC}°C, ${weather.desc}, humidity ${weather.humidity}%.
 

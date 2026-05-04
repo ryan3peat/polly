@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@clerk/nextjs';
 import SplashScreen from '@/components/splash/SplashScreen';
-import PasswordScreen, { isAuthed, setAuthed } from '@/components/auth/PasswordScreen';
+import { PhotoCropModal } from '@/components/ui/PhotoCropModal';
 import { supabase } from '@/lib/supabase';
 
 const PHOTOS = [
@@ -69,218 +70,6 @@ interface DailyBrief {
 }
 
 const PROFILE_PHOTO_KEY = 'polly_profile_photo';
-const FRAME = 188;
-
-// ── Photo crop modal ─────────────────────────────────────────
-function PhotoCropModal({
-  file,
-  onConfirm,
-  onCancel,
-}: {
-  file: File;
-  onConfirm: (blob: Blob) => void;
-  onCancel: () => void;
-}) {
-  const objectUrl  = useRef(URL.createObjectURL(file)).current;
-  const imgRef     = useRef<HTMLImageElement>(null);
-  const [loaded, setLoaded]           = useState(false);
-  const [naturalSize, setNaturalSize] = useState({ w: 0, h: 0 });
-  const [scale, setScale]             = useState(1);
-  const [offset, setOffset]           = useState({ x: 0, y: 0 });
-
-  useEffect(() => () => URL.revokeObjectURL(objectUrl), [objectUrl]);
-
-  // Base rendered size that fills the frame (cover behaviour)
-  const { rw, rh } = useMemo(() => {
-    const { w, h } = naturalSize;
-    if (!w || !h) return { rw: FRAME, rh: FRAME };
-    return w / h > 1
-      ? { rw: (FRAME * w) / h, rh: FRAME }
-      : { rw: FRAME, rh: (FRAME * h) / w };
-  }, [naturalSize]);
-
-  // Touch handling
-  const lastTouch = useRef<{ x: number; y: number } | null>(null);
-  const lastPinch = useRef<number | null>(null);
-
-  const onTouchStart = (e: React.TouchEvent) => {
-    if (e.touches.length === 1) {
-      lastTouch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-      lastPinch.current = null;
-    } else if (e.touches.length === 2) {
-      lastPinch.current = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY,
-      );
-      lastTouch.current = null;
-    }
-  };
-
-  const onTouchMove = (e: React.TouchEvent) => {
-    e.preventDefault();
-    if (e.touches.length === 1 && lastTouch.current) {
-      const dx = e.touches[0].clientX - lastTouch.current.x;
-      const dy = e.touches[0].clientY - lastTouch.current.y;
-      setOffset(o => ({ x: o.x + dx, y: o.y + dy }));
-      lastTouch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-    } else if (e.touches.length === 2 && lastPinch.current !== null) {
-      const dist = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY,
-      );
-      setScale(s => Math.max(1, Math.min(6, s * (dist / lastPinch.current!))));
-      lastPinch.current = dist;
-    }
-  };
-
-  const onTouchEnd = () => { lastTouch.current = null; lastPinch.current = null; };
-
-  // Mouse handling
-  const dragging  = useRef(false);
-  const lastMouse = useRef<{ x: number; y: number } | null>(null);
-
-  const onMouseDown = (e: React.MouseEvent) => {
-    dragging.current = true;
-    lastMouse.current = { x: e.clientX, y: e.clientY };
-  };
-  const onMouseMove = (e: React.MouseEvent) => {
-    if (!dragging.current || !lastMouse.current) return;
-    setOffset(o => ({
-      x: o.x + e.clientX - lastMouse.current!.x,
-      y: o.y + e.clientY - lastMouse.current!.y,
-    }));
-    lastMouse.current = { x: e.clientX, y: e.clientY };
-  };
-  const stopDrag = () => { dragging.current = false; lastMouse.current = null; };
-
-  const onWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
-    setScale(s => Math.max(1, Math.min(6, s * (e.deltaY < 0 ? 1.1 : 0.9))));
-  };
-
-  const handleConfirm = () => {
-    const img = imgRef.current;
-    if (!img || !loaded) return;
-    const { w: nw, h: nh } = naturalSize;
-    const ox = offset.x, oy = offset.y, s = scale;
-
-    // Map the 188×188 container view back to source image pixels
-    const scaleX = nw / (rw * s);
-    const scaleY = nh / (rh * s);
-    const sourceX = (rw * s / 2 - FRAME / 2 - ox) * scaleX;
-    const sourceY = (rh * s / 2 - FRAME / 2 - oy) * scaleY;
-    const sourceW = FRAME * scaleX;
-    const sourceH = FRAME * scaleY;
-
-    const canvas = document.createElement('canvas');
-    canvas.width = FRAME;
-    canvas.height = FRAME;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.drawImage(img, sourceX, sourceY, sourceW, sourceH, 0, 0, FRAME, FRAME);
-    canvas.toBlob(blob => { if (blob) onConfirm(blob); }, 'image/jpeg', 0.92);
-  };
-
-  return (
-    <div style={{
-      position: 'fixed', inset: 0, zIndex: 500,
-      background: 'rgba(0,0,0,0.92)',
-      display: 'flex', flexDirection: 'column',
-      alignItems: 'center', justifyContent: 'center', gap: 22,
-    }}>
-      <p style={{
-        fontFamily: 'var(--font-dm-sans), sans-serif',
-        fontSize: 12, color: 'rgba(255,255,255,0.55)',
-        letterSpacing: '0.1em', textTransform: 'uppercase',
-      }}>
-        Drag · Pinch to zoom
-      </p>
-
-      {/* Circular crop frame */}
-      <div
-        style={{
-          width: FRAME, height: FRAME, borderRadius: '50%',
-          overflow: 'hidden', position: 'relative',
-          border: '2px solid #C4A35A',
-          cursor: dragging.current ? 'grabbing' : 'grab',
-          touchAction: 'none', userSelect: 'none',
-          boxShadow: '0 0 0 9999px rgba(0,0,0,0.55)',
-        }}
-        onTouchStart={onTouchStart}
-        onTouchMove={onTouchMove}
-        onTouchEnd={onTouchEnd}
-        onMouseDown={onMouseDown}
-        onMouseMove={onMouseMove}
-        onMouseUp={stopDrag}
-        onMouseLeave={stopDrag}
-        onWheel={onWheel}
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          ref={imgRef}
-          src={objectUrl}
-          alt=""
-          onLoad={e => {
-            const img = e.currentTarget;
-            setNaturalSize({ w: img.naturalWidth, h: img.naturalHeight });
-            setLoaded(true);
-          }}
-          style={{
-            position: 'absolute',
-            width: rw, height: rh,
-            maxWidth: 'none',
-            top: '50%', left: '50%',
-            transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px)) scale(${scale})`,
-            transformOrigin: 'center center',
-            pointerEvents: 'none',
-            display: loaded ? 'block' : 'none',
-          }}
-        />
-      </div>
-
-      {/* Zoom slider */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, width: FRAME }}>
-        <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 20, fontWeight: 300, lineHeight: 1 }}>−</span>
-        <input
-          type="range" min="1" max="6" step="0.01"
-          value={scale}
-          onChange={e => setScale(Number(e.target.value))}
-          style={{ flex: 1, accentColor: '#C4A35A' }}
-        />
-        <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 20, fontWeight: 300, lineHeight: 1 }}>+</span>
-      </div>
-
-      {/* Buttons */}
-      <div style={{ display: 'flex', gap: 12 }}>
-        <button
-          onClick={onCancel}
-          style={{
-            height: 48, paddingLeft: 24, paddingRight: 24, borderRadius: 999,
-            border: '1px solid rgba(255,255,255,0.2)', background: 'transparent',
-            color: '#FFFFFF', fontFamily: 'var(--font-dm-sans), sans-serif',
-            fontSize: 13, cursor: 'pointer',
-          }}
-        >
-          Cancel
-        </button>
-        <button
-          onClick={handleConfirm}
-          disabled={!loaded}
-          style={{
-            height: 48, paddingLeft: 28, paddingRight: 28, borderRadius: 999,
-            border: 'none', background: '#C9848A',
-            color: '#FFFFFF', fontFamily: 'var(--font-dm-sans), sans-serif',
-            fontSize: 13, fontWeight: 500,
-            cursor: loaded ? 'pointer' : 'not-allowed',
-            opacity: loaded ? 1 : 0.6,
-          }}
-        >
-          Use this photo
-        </button>
-      </div>
-    </div>
-  );
-}
 
 // ── Landing page ─────────────────────────────────────────────
 function LandingPage() {
@@ -324,7 +113,7 @@ function LandingPage() {
     setCropFile(null);
     setPhotoUploading(true);
     try {
-      const path = `profile-${Date.now()}.jpg`;
+      const path = `profile/profile-${Date.now()}.jpg`;
       const { data, error } = await supabase.storage
         .from('wardrobe-photos')
         .upload(path, blob, { contentType: 'image/jpeg', upsert: true });
@@ -704,12 +493,12 @@ function LandingPage() {
 // ── Root ─────────────────────────────────────────────────────
 export default function Home() {
   const [splashComplete, setSplashComplete] = useState(false);
-  const [authed, setAuthed_]               = useState(false);
   const [ready, setReady]                  = useState(false);
   const [splashPhotos, setSplashPhotos]    = useState(PHOTOS);
+  const { isLoaded, isSignedIn }           = useAuth();
+  const router                             = useRouter();
 
   useEffect(() => {
-    setAuthed_(isAuthed());
     // Show cached splash photo instantly, then fetch latest from Supabase
     const cached = localStorage.getItem(PROFILE_PHOTO_KEY);
     if (cached) setSplashPhotos([cached, ...PHOTOS.slice(1)] as typeof PHOTOS);
@@ -726,6 +515,12 @@ export default function Home() {
       .catch(() => { /* keep cached */ });
   }, []);
 
+  // After splash, redirect to sign-in if not authenticated
+  useEffect(() => {
+    if (!splashComplete || !isLoaded) return;
+    if (!isSignedIn) router.replace('/sign-in');
+  }, [splashComplete, isLoaded, isSignedIn, router]);
+
   if (!ready) return null;
 
   if (!splashComplete) {
@@ -736,9 +531,7 @@ export default function Home() {
     );
   }
 
-  if (!authed) {
-    return <PasswordScreen onSuccess={() => { setAuthed(); setAuthed_(true); }} />;
-  }
+  if (!isLoaded || !isSignedIn) return null;
 
   return <LandingPage />;
 }
