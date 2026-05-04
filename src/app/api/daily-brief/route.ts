@@ -1,54 +1,111 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { anthropic } from '@/lib/anthropic';
 import { getServiceSupabase } from '@/lib/supabaseServer';
 
 export const runtime = 'nodejs';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    // Fetch user's style preference if signed in
+    const { searchParams } = new URL(req.url);
+    const lat = searchParams.get('lat');
+    const lon = searchParams.get('lon');
+    const day = parseInt(searchParams.get('day') ?? '0'); // 0=today, 1=tomorrow
+
+    // Fetch user's style preference and wardrobe if signed in
     const { userId } = await auth();
-    let stylePref = 'Female lawyer who loves bright colours. She pairs a bold colour with a plain neutral — e.g. cobalt blazer with white trousers, scarlet skirt with ivory blouse, emerald dress with nude heels. Always polished and court-appropriate.';
+    let stylePref = '';
+    let wardrobeContext = '';
 
     if (userId) {
       const supabase = getServiceSupabase();
-      const { data } = await supabase
-        .from('user_profiles')
-        .select('style_pref')
-        .eq('clerk_user_id', userId)
-        .single();
-      if (data?.style_pref) stylePref = data.style_pref;
+
+      const [profileRes, wardrobeRes] = await Promise.all([
+        supabase.from('user_profiles').select('style_pref').eq('clerk_user_id', userId).single(),
+        supabase.from('wardrobe_items').select('category, subcategory, colours').eq('clerk_user_id', userId).limit(60),
+      ]);
+
+      if (profileRes.data?.style_pref) stylePref = profileRes.data.style_pref;
+
+      const items = wardrobeRes.data ?? [];
+      if (items.length > 0) {
+        // Summarise wardrobe as a concise list for the prompt
+        const lines = items.map((item: { category: string; subcategory: string; colours: string[] }) =>
+          `${item.subcategory} (${item.colours?.join(', ') ?? 'unknown colour'})`
+        );
+        wardrobeContext = lines.join(', ');
+      }
     }
 
-    // Fetch Hong Kong weather from wttr.in
-    const weatherRes = await fetch('https://wttr.in/Hong+Kong?format=j1', {
+    // Build wttr.in URL — use coordinates if provided, otherwise IP-based
+    const wttrUrl = lat && lon
+      ? `https://wttr.in/~${lat},${lon}?format=j1`
+      : 'https://wttr.in/?format=j1';
+
+    const weatherRes = await fetch(wttrUrl, {
       headers: { 'User-Agent': 'curl/7.68.0' },
     });
     if (!weatherRes.ok) throw new Error('Weather fetch failed');
     const weatherData = await weatherRes.json();
 
-    const cond     = weatherData.current_condition[0];
-    const tempC    = parseInt(cond.temp_C);
-    const feelsC   = parseInt(cond.FeelsLikeC);
-    const desc     = cond.weatherDesc[0].value as string;
-    const humidity = parseInt(cond.humidity);
+    // Extract area name
+    const areaName: string =
+      weatherData.nearest_area?.[0]?.areaName?.[0]?.value ?? '';
 
-    // Generate outfit suggestions via Claude
+    let tempC: number, feelsC: number, desc: string, humidity: number;
+
+    if (day === 1) {
+      // Tomorrow: use midday hourly forecast
+      const tomorrow = weatherData.weather?.[1];
+      if (!tomorrow) throw new Error('No tomorrow forecast available');
+      const midday = tomorrow.hourly?.[4] ?? tomorrow.hourly?.[3] ?? tomorrow.hourly?.[0];
+      tempC    = parseInt(tomorrow.avgtempC);
+      feelsC   = parseInt(midday.FeelsLikeC);
+      desc     = midday.weatherDesc?.[0]?.value ?? '';
+      humidity = parseInt(midday.humidity);
+    } else {
+      // Today: use current conditions
+      const cond = weatherData.current_condition[0];
+      tempC    = parseInt(cond.temp_C);
+      feelsC   = parseInt(cond.FeelsLikeC);
+      desc     = cond.weatherDesc[0].value as string;
+      humidity = parseInt(cond.humidity);
+    }
+
+    const dayLabel = day === 1 ? 'tomorrow' : 'today';
+
+    // Build personalised context for Claude
+    const hasWardrobe = wardrobeContext.length > 0;
+    const hasStylePref = stylePref.length > 0;
+
+    let personalisationBlock: string;
+    if (hasWardrobe && hasStylePref) {
+      personalisationBlock = `Style profile: ${stylePref}
+Wardrobe items available: ${wardrobeContext}
+Suggest outfits using actual items from their wardrobe where possible. Reference specific pieces by name.`;
+    } else if (hasWardrobe) {
+      personalisationBlock = `Wardrobe items available: ${wardrobeContext}
+Suggest outfits using actual items from their wardrobe where possible. Reference specific pieces by name.`;
+    } else if (hasStylePref) {
+      personalisationBlock = `Style profile: ${stylePref}`;
+    } else {
+      personalisationBlock = `Style profile: A stylish person who wants practical, put-together outfits appropriate for the weather.`;
+    }
+
     const message = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 400,
       system: 'You are a personal stylist. Return only valid JSON, no markdown, no explanation.',
       messages: [{
         role: 'user',
-        content: `Generate 3 outfit suggestions for today based on the weather and style profile.
+        content: `Generate 3 outfit suggestions for ${dayLabel} based on the weather and the user's wardrobe and style.
 
-Weather in Hong Kong: ${tempC}°C (feels like ${feelsC}°C), ${desc}, humidity ${humidity}%
-Style profile: ${stylePref}
+Weather ${dayLabel}: ${tempC}°C (feels like ${feelsC}°C), ${desc}, humidity ${humidity}%
+${personalisationBlock}
 
 Return a JSON object with exactly these fields:
 - outfits: array of exactly 3 strings, each a concise outfit (max 10 words, use · as separator, e.g. "Cobalt blazer · white tailored trousers · nude heels")
-- weatherTip: string (one short practical tip about dressing for today's weather, max 12 words, no fluff)`,
+- weatherTip: string (one short practical tip about dressing for ${dayLabel}'s weather, max 12 words, no fluff)`,
       }],
     });
 
@@ -60,6 +117,7 @@ Return a JSON object with exactly these fields:
       weather: { tempC, feelsC, desc, humidity },
       outfits: parsed.outfits ?? [],
       weatherTip: parsed.weatherTip ?? '',
+      areaName,
     });
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : 'Failed' }, { status: 500 });
