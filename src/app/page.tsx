@@ -298,8 +298,19 @@ function LandingPage() {
   const [briefError, setBriefError] = useState(false);
 
   useEffect(() => {
-    const saved = localStorage.getItem(PROFILE_PHOTO_KEY);
-    if (saved) setProfilePhoto(saved);
+    // Show cached value instantly, then sync from Supabase
+    const cached = localStorage.getItem(PROFILE_PHOTO_KEY);
+    if (cached) setProfilePhoto(cached);
+
+    fetch('/api/profile')
+      .then(r => r.json())
+      .then(data => {
+        if (data.success && data.url) {
+          setProfilePhoto(data.url);
+          localStorage.setItem(PROFILE_PHOTO_KEY, data.url);
+        }
+      })
+      .catch(() => { /* keep cached/default */ });
   }, []);
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -319,8 +330,17 @@ function LandingPage() {
         .upload(path, blob, { contentType: 'image/jpeg', upsert: true });
       if (error) throw error;
       const { data: urlData } = supabase.storage.from('wardrobe-photos').getPublicUrl(data.path);
-      setProfilePhoto(urlData.publicUrl);
-      localStorage.setItem(PROFILE_PHOTO_KEY, urlData.publicUrl);
+      const newUrl = urlData.publicUrl;
+
+      setProfilePhoto(newUrl);
+      localStorage.setItem(PROFILE_PHOTO_KEY, newUrl);
+
+      // Persist to Supabase so all devices stay in sync
+      await fetch('/api/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: newUrl }),
+      });
     } catch { /* silently fail — keep existing photo */ }
     finally {
       setPhotoUploading(false);
@@ -690,9 +710,20 @@ export default function Home() {
 
   useEffect(() => {
     setAuthed_(isAuthed());
-    const saved = localStorage.getItem(PROFILE_PHOTO_KEY);
-    if (saved) setSplashPhotos([saved, ...PHOTOS.slice(1)] as typeof PHOTOS);
+    // Show cached splash photo instantly, then fetch latest from Supabase
+    const cached = localStorage.getItem(PROFILE_PHOTO_KEY);
+    if (cached) setSplashPhotos([cached, ...PHOTOS.slice(1)] as typeof PHOTOS);
     setReady(true);
+
+    fetch('/api/profile')
+      .then(r => r.json())
+      .then(data => {
+        if (data.success && data.url) {
+          localStorage.setItem(PROFILE_PHOTO_KEY, data.url);
+          setSplashPhotos([data.url, ...PHOTOS.slice(1)] as typeof PHOTOS);
+        }
+      })
+      .catch(() => { /* keep cached */ });
   }, []);
 
   if (!ready) return null;
