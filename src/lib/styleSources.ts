@@ -3,8 +3,6 @@ export const STYLE_FEEDS = [
   { name: "Harper's Bazaar",  url: 'https://www.harpersbazaar.com/rss/all.xml/'                           },
   { name: 'Who What Wear',    url: 'https://www.whowhatwear.com/rss'                                      },
   { name: 'The Cut',          url: 'https://www.thecut.com/rss/index.xml'                                 },
-  { name: 'Daily Mail',       url: 'https://www.dailymail.co.uk/femail/index.rss'                         },
-  { name: 'Daily Mail',       url: 'https://www.dailymail.co.uk/tvshowbiz/index.rss'                      },
   { name: 'People',           url: 'https://people.com/feed/'                                             },
   { name: 'E! Online',        url: 'https://www.eonline.com/syndication/feeds/rssfeeds/topstories.xml'    },
 ] as const;

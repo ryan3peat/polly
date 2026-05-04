@@ -320,7 +320,10 @@ function AnalyseModal({ item, onClose }: { item: StyleItem; onClose: () => void 
     const el = scrollRef.current;
     if (!el) return;
     const idx = Math.round(el.scrollLeft / el.clientWidth);
-    setActiveIdx(idx);
+    if (idx !== activeIdx) {
+      setActiveIdx(idx);
+      setShopItems([]); // clear results when image changes
+    }
   };
 
   const handleAnalyse = async () => {
@@ -432,19 +435,20 @@ function AnalyseModal({ item, onClose }: { item: StyleItem; onClose: () => void 
             )}
           </div>
 
-          {shopItems.length === 0 && !analysing && (
+          {!analysing && (
             <button
               onClick={handleAnalyse}
               style={{
                 width: '100%', minHeight: 52, borderRadius: 999,
-                background: '#B5737A', color: '#FFFFFF',
+                background: shopItems.length > 0 ? 'transparent' : '#B5737A',
+                color: shopItems.length > 0 ? '#B5737A' : '#FFFFFF',
+                border: shopItems.length > 0 ? '1px solid #B5737A' : 'none',
                 fontFamily: "'DM Sans', sans-serif",
-                fontSize: 16, fontWeight: 500,
-                border: 'none', cursor: 'pointer',
-                letterSpacing: '0.02em',
+                fontSize: shopItems.length > 0 ? 14 : 16, fontWeight: 500,
+                cursor: 'pointer', letterSpacing: '0.02em',
               }}
             >
-              Find items to shop
+              {shopItems.length > 0 ? '↺ Search this image' : 'Find items to shop'}
             </button>
           )}
 
