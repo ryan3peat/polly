@@ -37,6 +37,43 @@ interface RawSuggestion {
   weather_note: string | null;
 }
 
+// Bracket-balanced JSON array extractor — tolerates surrounding text from Claude
+function extractJsonArray(text: string): unknown[] | null {
+  const stripped = text
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```\s*$/i, '')
+    .trim();
+
+  try {
+    const p = JSON.parse(stripped);
+    return Array.isArray(p) ? p : null;
+  } catch { /* fall through */ }
+
+  const start = stripped.indexOf('[');
+  if (start === -1) return null;
+
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+
+  for (let i = start; i < stripped.length; i++) {
+    const ch = stripped[i];
+    if (escape)                  { escape = false; continue; }
+    if (ch === '\\' && inString) { escape = true;  continue; }
+    if (ch === '"')              { inString = !inString; continue; }
+    if (inString)                continue;
+    if (ch === '[') depth++;
+    if (ch === ']') {
+      depth--;
+      if (depth === 0) {
+        try { return JSON.parse(stripped.slice(start, i + 1)) as unknown[]; }
+        catch { return null; }
+      }
+    }
+  }
+  return null;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -106,21 +143,14 @@ Return a JSON array of exactly 3 objects each with: outfit_name (string, short e
 
     // Step 5 — Parse and resolve item ids to full objects
     const raw = message.content[0].type === 'text' ? message.content[0].text : '';
-    const cleaned = raw
-      .replace(/^```(?:json)?\s*/i, '')
-      .replace(/\s*```\s*$/i, '')
-      .trim();
+    const parsed = extractJsonArray(raw);
 
-    let rawSuggestions: RawSuggestion[];
-    try {
-      rawSuggestions = JSON.parse(cleaned);
-    } catch {
+    if (!parsed) {
+      console.error('Unparseable Claude response:', raw.slice(0, 500));
       return NextResponse.json({ success: false, error: 'Claude returned unparseable JSON' }, { status: 500 });
     }
 
-    if (!Array.isArray(rawSuggestions)) {
-      return NextResponse.json({ success: false, error: 'Claude returned unparseable JSON' }, { status: 500 });
-    }
+    const rawSuggestions = parsed as RawSuggestion[];
 
     const itemById = new Map(allItems.map(item => [item.id, item]));
 
