@@ -557,7 +557,8 @@ function LandingPage() {
 
 // ── Root ─────────────────────────────────────────────────────
 export default function Home() {
-  const [splashComplete, setSplashComplete] = useState(false);
+  const alreadySeen = typeof sessionStorage !== 'undefined' && sessionStorage.getItem('splash_seen') === '1';
+  const [splashComplete, setSplashComplete] = useState(alreadySeen);
   const [ready, setReady]                  = useState(false);
   const [splashPhotos, setSplashPhotos]    = useState(PHOTOS);
   const { isLoaded, isSignedIn }           = useAuth();
@@ -591,7 +592,7 @@ export default function Home() {
   if (!splashComplete) {
     return (
       <div style={{ position: 'fixed', inset: 0, background: '#FAF7F4' }}>
-        <SplashScreen onComplete={() => setSplashComplete(true)} photos={splashPhotos} />
+        <SplashScreen onComplete={() => { sessionStorage.setItem('splash_seen', '1'); setSplashComplete(true); }} photos={splashPhotos} />
       </div>
     );
   }
