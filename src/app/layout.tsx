@@ -21,12 +21,19 @@ const dmSans = DM_Sans({
 export const metadata: Metadata = {
   title: "Polly's App",
   description: 'Your daily world, curated.',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    title: "Polly's App",
+    statusBarStyle: 'black-translucent',
+  },
 };
 
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
+  themeColor: '#C9848A',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

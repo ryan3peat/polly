@@ -1,0 +1,17 @@
+{
+  "name": "Polly's App",
+  "short_name": "Polly's App",
+  "description": "Your daily world, curated.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#C9848A",
+  "theme_color": "#C9848A",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
