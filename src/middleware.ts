@@ -8,8 +8,8 @@ const isPublic = createRouteMatcher([
   '/onboarding-check',
 ]);
 
-export default clerkMiddleware(async (auth, req) => {
-  if (!isPublic(req)) await auth.protect();
+export default clerkMiddleware((auth, req) => {
+  if (!isPublic(req)) auth().protect();
 });
 
 export const config = {
