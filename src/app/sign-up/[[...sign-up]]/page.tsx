@@ -12,7 +12,6 @@ const clerkAppearance = {
     colorText: '#2A2A2A',
     colorTextSecondary: '#7A7170',
     colorNeutral: '#2A2A2A',
-    borderRadius: '999px',
     fontFamily: "'DM Sans', sans-serif",
   },
   elements: {
@@ -20,6 +19,7 @@ const clerkAppearance = {
       boxShadow: 'none',
       background: 'transparent',
       border: 'none',
+      borderRadius: '0',
     },
     headerTitle: {
       display: 'none',
@@ -31,21 +31,23 @@ const clerkAppearance = {
       border: '1px solid #EDD9DB',
       background: '#FFFFFF',
       color: '#2A2A2A',
+      borderRadius: '999px',
     },
     formButtonPrimary: {
       background: '#C9848A',
       fontSize: '14px',
       fontWeight: 500,
+      borderRadius: '999px',
+    },
+    formFieldInput: {
+      border: '1px solid #EDD9DB',
+      borderRadius: '999px',
     },
     footerActionLink: {
       color: '#C4A35A',
     },
     dividerLine: {
       background: '#EDD9DB',
-    },
-    formFieldInput: {
-      border: '1px solid #EDD9DB',
-      borderRadius: '999px',
     },
   },
 };
