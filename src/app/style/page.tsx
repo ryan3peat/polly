@@ -312,7 +312,7 @@ function AnalyseModal({ item, onClose }: { item: StyleItem; onClose: () => void 
   // Deduplicate and build image list
   const images = React.useMemo(() => {
     const all = item.image_urls?.filter(Boolean) ?? [];
-    if (all.length > 0) return [...new Set(all)];
+    if (all.length > 0) return all.filter((url, i, arr) => arr.indexOf(url) === i);
     return item.image_url ? [item.image_url] : [];
   }, [item]);
 
