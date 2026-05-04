@@ -321,9 +321,17 @@ function AnalyseModal({ item, onClose }: { item: StyleItem; onClose: () => void 
           <X size={20} />
         </button>
 
-        {/* Portrait image in modal too */}
-        <div style={{ aspectRatio: '3/4', background: '#F2D4D7', overflow: 'hidden', flexShrink: 0, maxHeight: '45dvh' }}>
-          <img src={item.image_url} alt={item.headline} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+        {/* Full image — contain so nothing is cropped regardless of image shape */}
+        <div style={{
+          background: '#2A2A2A', overflow: 'hidden', flexShrink: 0,
+          maxHeight: '52dvh',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <img
+            src={item.image_url}
+            alt={item.headline}
+            style={{ width: '100%', height: 'auto', maxHeight: '52dvh', objectFit: 'contain', display: 'block' }}
+          />
         </div>
 
         <div style={{ padding: '20px 20px 40px', display: 'flex', flexDirection: 'column', gap: 16 }}>
