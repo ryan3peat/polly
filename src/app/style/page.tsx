@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Loader2, X, Sliders, Trash2 } from 'lucide-react';
+import { useUser } from '@clerk/nextjs';
 import { supabase } from '@/lib/supabase';
 import { StyleItem } from '@/types';
 import {
@@ -406,6 +407,9 @@ function AnalyseModal({ item, onClose }: { item: StyleItem; onClose: () => void 
 
 // ── Page ─────────────────────────────────────────────────────────
 export default function StylePage() {
+  const { user } = useUser();
+  const userId = user?.id;
+
   const [items, setItems]               = useState<StyleItem[]>([]);
   const [loading, setLoading]           = useState(true);
   const [refreshing, setRefreshing]     = useState(false);
@@ -414,37 +418,63 @@ export default function StylePage() {
   const [sourcePrefs, setSourcePrefs]   = useState<SourcePrefs>(defaultPrefs());
   const [customSources, setCustomSources] = useState<CustomSource[]>([]);
 
+  // Load source prefs from localStorage, custom sources from DB
   useEffect(() => {
     try {
       const saved = localStorage.getItem(PREFS_KEY);
       if (saved) setSourcePrefs({ ...defaultPrefs(), ...JSON.parse(saved) });
     } catch { /* ignore */ }
-    try {
-      const saved = localStorage.getItem(CUSTOM_SOURCES_KEY);
-      if (saved) setCustomSources(JSON.parse(saved));
-    } catch { /* ignore */ }
+
+    // Load custom sources from DB (fall back to localStorage cache)
+    fetch('/api/style/sources')
+      .then(r => r.json())
+      .then(data => {
+        if (data.sources) {
+          setCustomSources(data.sources);
+          localStorage.setItem(CUSTOM_SOURCES_KEY, JSON.stringify(data.sources));
+        }
+      })
+      .catch(() => {
+        try {
+          const saved = localStorage.getItem(CUSTOM_SOURCES_KEY);
+          if (saved) setCustomSources(JSON.parse(saved));
+        } catch { /* ignore */ }
+      });
   }, []);
 
   const savePrefs = (prefs: SourcePrefs) => {
     setSourcePrefs(prefs);
     localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
   };
+
   const saveCustom = (sources: CustomSource[]) => {
     setCustomSources(sources);
     localStorage.setItem(CUSTOM_SOURCES_KEY, JSON.stringify(sources));
   };
 
   const fetchItems = useCallback(async () => {
-    const { data } = await supabase
-      .from('style_items').select('*')
-      .order('created_at', { ascending: false }).limit(40);
+    let query = supabase
+      .from('style_items')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(60);
+
+    if (userId) {
+      // User sees shared default items (clerk_user_id IS NULL) + their own custom items
+      query = query.or(`clerk_user_id.eq.${userId},clerk_user_id.is.null`);
+    } else {
+      query = query.is('clerk_user_id', null);
+    }
+
+    const { data } = await query;
     const rows = data ?? [];
     setItems(rows);
     setLoading(false);
     return rows.length;
-  }, []);
+  }, [userId]);
 
   useEffect(() => {
+    if (userId === undefined) return; // wait for Clerk to load
     fetchItems().then(count => {
       if (count === 0) {
         setRefreshing(true);
@@ -457,7 +487,7 @@ export default function StylePage() {
       }
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fetchItems]);
+  }, [fetchItems, userId]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -469,6 +499,22 @@ export default function StylePage() {
     });
     await fetchItems();
     setRefreshing(false);
+  };
+
+  const handleToggleCustom = (url: string, enabled: boolean) => {
+    saveCustom(customSources.map(s => s.url === url ? { ...s, enabled } : s));
+    fetch('/api/style/sources', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, enabled }),
+    }).catch(() => { /* ignore, localStorage already updated */ });
+  };
+
+  const handleRemoveCustom = (url: string) => {
+    saveCustom(customSources.filter(s => s.url !== url));
+    fetch(`/api/style/sources?url=${encodeURIComponent(url)}`, { method: 'DELETE' })
+      .then(() => fetchItems()) // refresh feed to remove their items
+      .catch(() => { /* ignore */ });
   };
 
   return (
@@ -561,8 +607,8 @@ export default function StylePage() {
             onToggle={(n, v) => savePrefs({ ...sourcePrefs, [n]: v })}
             customSources={customSources}
             onAddCustom={src => saveCustom([...customSources, src])}
-            onToggleCustom={(url, v) => saveCustom(customSources.map(s => s.url === url ? { ...s, enabled: v } : s))}
-            onRemoveCustom={url => saveCustom(customSources.filter(s => s.url !== url))}
+            onToggleCustom={handleToggleCustom}
+            onRemoveCustom={handleRemoveCustom}
             onClose={() => setSourcesOpen(false)}
             onItemsAdded={fetchItems}
           />

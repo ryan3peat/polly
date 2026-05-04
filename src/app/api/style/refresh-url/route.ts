@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@clerk/nextjs/server';
 import { anthropic } from '@/lib/anthropic';
 import { getServiceSupabase } from '@/lib/supabaseServer';
 import { fetchPageContent } from '@/lib/jina';
+
+export const runtime = 'nodejs';
 
 // Robustly extracts the first complete JSON array from a string,
 // tolerating trailing text, explanations, or multiple arrays.
@@ -45,6 +48,9 @@ function extractJsonArray(text: string): unknown[] {
 
 export async function POST(req: NextRequest) {
   try {
+    const { userId } = await auth();
+    if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
     const { url } = await req.json();
     if (!url) return NextResponse.json({ error: 'url required' }, { status: 400 });
 
@@ -78,20 +84,27 @@ export async function POST(req: NextRequest) {
     if (toInsert.length > 0) {
       const { error } = await supabase.from('style_items').insert(
         toInsert.map(item => ({
-          headline:    item.headline,
-          summary:     item.summary,
-          image_url:   item.image_url ?? '',
-          category:    item.category  ?? 'Trend',
-          source_name: sourceName,
-          source_url:  item.source_url ?? url,
-          is_saved:    false,
+          headline:      item.headline,
+          summary:       item.summary,
+          image_url:     item.image_url ?? '',
+          category:      item.category  ?? 'Trend',
+          source_name:   sourceName,
+          source_url:    item.source_url ?? url,
+          is_saved:      false,
+          clerk_user_id: userId,
         }))
       );
       if (error) throw new Error(error.message);
       inserted = toInsert.length;
     }
 
-    return NextResponse.json({ success: true, inserted });
+    // Persist source record so it survives device changes
+    await supabase.from('style_sources').upsert(
+      { clerk_user_id: userId, url, name: sourceName, enabled: true },
+      { onConflict: 'clerk_user_id,url' }
+    );
+
+    return NextResponse.json({ success: true, inserted, sourceName });
 
   } catch (err) {
     const error = err instanceof Error ? err.message : 'Unknown error';
