@@ -12,6 +12,7 @@ import {
 } from '@/lib/styleSources';
 
 const PREFS_KEY = 'polly_style_sources';
+const FEED_PAGE_SIZE = 60;
 
 // ── Shared styles ────────────────────────────────────────────────
 const sheet: React.CSSProperties = {
@@ -193,6 +194,30 @@ function SourcesSheet({
         </div>
       </motion.div>
     </motion.div>
+  );
+}
+
+function LoadMoreButton({ loading, onClick, marginTop }: { loading: boolean; onClick: () => void; marginTop: number }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'center', marginTop }}>
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={loading}
+        style={{
+          minHeight: 44, paddingLeft: 22, paddingRight: 22,
+          borderRadius: 999, border: '1px solid #C9848A',
+          background: 'transparent', color: '#C9848A',
+          fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 500,
+          cursor: loading ? 'not-allowed' : 'pointer',
+          display: 'flex', alignItems: 'center', gap: 8,
+          opacity: loading ? 0.65 : 1,
+        }}
+      >
+        {loading ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : null}
+        {loading ? 'Loading…' : 'Load more'}
+      </button>
+    </div>
   );
 }
 
@@ -547,6 +572,8 @@ export default function StylePage() {
 
   const [items, setItems]               = useState<StyleItem[]>([]);
   const [loading, setLoading]           = useState(true);
+  const [loadingMore, setLoadingMore]   = useState(false);
+  const [hasMore, setHasMore]           = useState(false);
   const [refreshing, setRefreshing]     = useState(false);
   const [selectedItem, setSelectedItem] = useState<StyleItem | null>(null);
   const [sourcesOpen, setSourcesOpen]   = useState(false);
@@ -592,7 +619,7 @@ export default function StylePage() {
       .from('style_items')
       .select('*')
       .order('created_at', { ascending: false })
-      .limit(60);
+      .limit(FEED_PAGE_SIZE);
 
     if (userId) {
       // User sees shared default items (clerk_user_id IS NULL) + their own custom items
@@ -604,9 +631,37 @@ export default function StylePage() {
     const { data } = await query;
     const rows = data ?? [];
     setItems(rows);
+    setHasMore(rows.length === FEED_PAGE_SIZE);
     setLoading(false);
     return rows.length;
   }, [userId]);
+
+  const loadMore = useCallback(async () => {
+    if (!hasMore || loadingMore || items.length === 0) return;
+    const oldest = items[items.length - 1];
+    setLoadingMore(true);
+    try {
+      let query = supabase
+        .from('style_items')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(FEED_PAGE_SIZE)
+        .lt('created_at', oldest.created_at);
+
+      if (userId) {
+        query = query.or(`clerk_user_id.eq.${userId},clerk_user_id.is.null`);
+      } else {
+        query = query.is('clerk_user_id', null);
+      }
+
+      const { data } = await query;
+      const rows = data ?? [];
+      setItems(prev => [...prev, ...rows]);
+      setHasMore(rows.length === FEED_PAGE_SIZE);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [userId, hasMore, loadingMore, items]);
 
   useEffect(() => {
     if (userId === undefined) return; // wait for Clerk to load
@@ -715,18 +770,24 @@ export default function StylePage() {
                   {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
                 </div>
               ) : visibleItems.length === 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: 14 }}>
-                  <Sparkles size={32} color="#C9848A" strokeWidth={1.5} />
-                  <p style={{ fontFamily: "'DM Sans', sans-serif", fontStyle: 'italic', fontSize: 14, color: '#7A7170', textAlign: 'center' }}>
-                    {items.length > 0 ? 'No articles from your enabled sources' : 'Tap Refresh to load today\'s style feed'}
-                  </p>
-                </div>
+                <>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: 14 }}>
+                    <Sparkles size={32} color="#C9848A" strokeWidth={1.5} />
+                    <p style={{ fontFamily: "'DM Sans', sans-serif", fontStyle: 'italic', fontSize: 14, color: '#7A7170', textAlign: 'center' }}>
+                      {items.length > 0 ? 'No articles from your enabled sources' : 'Tap Refresh to load today\'s style feed'}
+                    </p>
+                  </div>
+                  {hasMore && <LoadMoreButton loading={loadingMore} onClick={loadMore} marginTop={8} />}
+                </>
               ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  {visibleItems.map((item, i) => (
-                    <StyleCard key={item.id} item={item} index={i} onImageTap={setSelectedItem} />
-                  ))}
-                </div>
+                <>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    {visibleItems.map((item, i) => (
+                      <StyleCard key={item.id} item={item} index={i} onImageTap={setSelectedItem} />
+                    ))}
+                  </div>
+                  {hasMore && <LoadMoreButton loading={loadingMore} onClick={loadMore} marginTop={20} />}
+                </>
               )}
             </div>
           );
