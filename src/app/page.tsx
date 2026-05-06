@@ -98,7 +98,6 @@ function WhatToWearSection({
   const sectionRef = useRef<HTMLDivElement>(null);
   const timersRef  = useRef<ReturnType<typeof setTimeout>[]>([]);
   const startedRef = useRef(false);
-  const loopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // animation state
   const [cardA, setCardA] = useState<'hidden' | 'show' | 'active'>('hidden');
@@ -112,7 +111,6 @@ function WhatToWearSection({
   function clearAll() {
     timersRef.current.forEach(t => clearTimeout(t));
     timersRef.current = [];
-    if (loopTimerRef.current) clearTimeout(loopTimerRef.current);
     setCardA('hidden'); setCardB('hidden'); setCardC('hidden');
     setThreadsGo(false); setOutputShow(false);
     setOutfitShow([false, false, false]); setTipShow(false);
@@ -138,7 +136,6 @@ function WhatToWearSection({
     t(2760, () => setOutfitShow([true, true, true]));
     t(3300, () => setTipShow(true));
 
-    loopTimerRef.current = setTimeout(play, 7800);
   }
 
   useEffect(() => {
