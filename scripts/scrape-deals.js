@@ -2,7 +2,6 @@ const { chromium } = require('playwright-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth').default ?? require('puppeteer-extra-plugin-stealth');
 const Anthropic = require('@anthropic-ai/sdk');
 const { createClient } = require('@supabase/supabase-js');
-const ws = require('ws');
 
 chromium.use(StealthPlugin());
 
@@ -183,9 +182,7 @@ async function main() {
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) throw new Error('SUPABASE_SERVICE_ROLE_KEY is not set');
 
   anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, {
-    realtime: { transport: ws },
-  });
+  supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
   const { error: deleteError } = await supabase.from('deals').delete().neq('id', '00000000-0000-0000-0000-000000000000');
   if (deleteError) throw new Error(`Delete failed: ${deleteError.message} — ${deleteError.hint ?? ''}`);
