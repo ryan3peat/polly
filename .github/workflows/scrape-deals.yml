@@ -27,6 +27,9 @@ jobs:
         working-directory: scripts
         run: npx playwright install --with-deps chromium
 
+      - name: Verify Node version
+        run: node --version
+
       - name: Run scraper
         working-directory: scripts
         env:
