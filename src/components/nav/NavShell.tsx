@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@clerk/nextjs';
 import BottomNav from './BottomNav';
 
-const AUTH_PAGES = ['/', '/sign-in', '/sign-up', '/onboarding', '/onboarding-check'];
+const AUTH_PAGES = ['/sign-in', '/sign-up', '/onboarding', '/onboarding-check'];
 
 function isAuthPage(pathname: string) {
   return AUTH_PAGES.some(p => pathname === p || pathname.startsWith(p + '/'));

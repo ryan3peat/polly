@@ -51,7 +51,6 @@ function getDailyQuote() {
   return QUOTES[dayOfYear % QUOTES.length];
 }
 
-// Weather condition → simple label
 function weatherIcon(desc: string): string {
   const d = desc.toLowerCase();
   if (d.includes('sunny') || d.includes('clear'))              return '☀';
@@ -70,7 +69,372 @@ interface DailyBrief {
   areaName?: string;
 }
 
+interface WtwItem {
+  name: string;
+  taste: string;
+  lastWorn: string;
+}
+
 const PROFILE_PHOTO_KEY = 'polly_profile_photo';
+
+// ── Animated What to Wear section ────────────────────────────
+function WhatToWearSection({
+  brief,
+  tomorrowBrief,
+  viewDay,
+  tomorrowLoading,
+  handleViewTomorrow,
+  setViewDay,
+  wtwItem,
+}: {
+  brief: DailyBrief | null;
+  tomorrowBrief: DailyBrief | null;
+  viewDay: 'today' | 'tomorrow';
+  tomorrowLoading: boolean;
+  handleViewTomorrow: () => void;
+  setViewDay: (d: 'today' | 'tomorrow') => void;
+  wtwItem: WtwItem | null;
+}) {
+  const sectionRef = useRef<HTMLDivElement>(null);
+  const timersRef  = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const startedRef = useRef(false);
+  const loopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // animation state
+  const [cardA, setCardA] = useState<'hidden' | 'show' | 'active'>('hidden');
+  const [cardB, setCardB] = useState<'hidden' | 'show' | 'active'>('hidden');
+  const [cardC, setCardC] = useState<'hidden' | 'show' | 'active'>('hidden');
+  const [threadsGo, setThreadsGo]   = useState(false);
+  const [outputShow, setOutputShow] = useState(false);
+  const [outfitShow, setOutfitShow] = useState([false, false, false]);
+  const [tipShow, setTipShow]       = useState(false);
+
+  function clearAll() {
+    timersRef.current.forEach(t => clearTimeout(t));
+    timersRef.current = [];
+    if (loopTimerRef.current) clearTimeout(loopTimerRef.current);
+    setCardA('hidden'); setCardB('hidden'); setCardC('hidden');
+    setThreadsGo(false); setOutputShow(false);
+    setOutfitShow([false, false, false]); setTipShow(false);
+  }
+
+  function play() {
+    clearAll();
+    const t = (ms: number, fn: () => void) => {
+      const id = setTimeout(fn, ms);
+      timersRef.current.push(id);
+    };
+
+    t(200,  () => setCardA('show'));
+    t(350,  () => setCardA('active'));
+    t(550,  () => setCardB('show'));
+    t(700,  () => setCardB('active'));
+    t(900,  () => setCardC('show'));
+    t(1050, () => setCardC('active'));
+    t(1500, () => setThreadsGo(true));
+    t(2100, () => setOutputShow(true));
+    t(2400, () => setOutfitShow([true, false, false]));
+    t(2580, () => setOutfitShow([true, true, false]));
+    t(2760, () => setOutfitShow([true, true, true]));
+    t(3300, () => setTipShow(true));
+
+    loopTimerRef.current = setTimeout(play, 7800);
+  }
+
+  useEffect(() => {
+    const el = sectionRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(entries => {
+      entries.forEach(e => {
+        if (e.isIntersecting && !startedRef.current) {
+          startedRef.current = true;
+          setTimeout(play, 200);
+        }
+      });
+    }, { threshold: 0.3 });
+    io.observe(el);
+    return () => { io.disconnect(); clearAll(); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const activeBriefLoading = viewDay === 'tomorrow' && tomorrowLoading;
+  const activeBrief = viewDay === 'today' ? brief : tomorrowBrief;
+
+  // Card state helpers
+  function cardStyle(state: 'hidden' | 'show' | 'active'): React.CSSProperties {
+    return {
+      background: '#FFFFFF',
+      border: state === 'active' ? '1px solid #C9848A' : '1px solid #EDD9DB',
+      borderRadius: 11,
+      padding: '9px 8px 10px',
+      textAlign: 'center' as const,
+      position: 'relative' as const,
+      opacity: state === 'hidden' ? 0 : 1,
+      transform: state === 'hidden' ? 'translateY(8px)' : 'translateY(0)',
+      transition: 'opacity 0.5s ease, transform 0.5s ease, border-color 0.4s ease, box-shadow 0.4s ease',
+      boxShadow: state === 'active'
+        ? '0 0 0 3px rgba(201,132,138,0.12), 0 6px 14px -6px rgba(201,132,138,0.3)'
+        : 'none',
+    };
+  }
+
+  const skeletonLoading = !brief && !activeBriefLoading;
+
+  return (
+    <>
+      <style>{`
+        @keyframes wtw-pulse {
+          0%   { box-shadow: 0 0 0 0 rgba(201,132,138,0.5); }
+          100% { box-shadow: 0 0 0 12px rgba(201,132,138,0); }
+        }
+        @keyframes wtw-slide {
+          0%   { opacity: 0; transform: translateY(0); }
+          20%  { opacity: 1; }
+          100% { opacity: 0; transform: translateY(28px); }
+        }
+        @keyframes wtw-spring {
+          0%   { opacity: 0; transform: scale(0.7); }
+          60%  { transform: scale(1.06); }
+          100% { opacity: 1; transform: scale(1); }
+        }
+      `}</style>
+
+      <div ref={sectionRef} style={{ margin: '36px 28px 0' }}>
+        {/* Section header + toggle */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <div style={{ fontSize: 9.5, letterSpacing: '0.28em', textTransform: 'uppercase', color: '#C4A35A', fontWeight: 500 }}>
+            {viewDay === 'today' ? 'What to wear today' : 'What to wear tomorrow'}
+          </div>
+          <div style={{ display: 'flex', gap: 4 }}>
+            {(['today', 'tomorrow'] as const).map(day => (
+              <button
+                key={day}
+                onClick={() => { if (day === 'tomorrow') handleViewTomorrow(); else setViewDay('today'); }}
+                style={{
+                  fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase',
+                  fontFamily: 'var(--font-dm-sans), sans-serif',
+                  padding: '3px 9px', borderRadius: 999, border: 'none', cursor: 'pointer',
+                  background: viewDay === day ? '#C9848A' : 'transparent',
+                  color: viewDay === day ? '#FFFFFF' : '#7A7170',
+                  fontWeight: viewDay === day ? 500 : 400,
+                  transition: 'background 0.15s, color 0.15s',
+                }}
+              >
+                {day === 'today' ? 'Today' : 'Tomorrow'}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Location + weather meta */}
+        {activeBrief && !activeBriefLoading && (
+          <div style={{ fontSize: 9.5, color: '#7A7170', marginBottom: 12, letterSpacing: '0.04em' }}>
+            {activeBrief.areaName || 'Your Location'} · {activeBrief.weather.tempC}° {activeBrief.weather.desc}
+          </div>
+        )}
+
+        {/* 3 Input Cards */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 7, position: 'relative', zIndex: 2 }}>
+          {/* Card A — Weather */}
+          <div style={cardStyle(cardA)}>
+            <div style={{ fontSize: 7, letterSpacing: '0.24em', textTransform: 'uppercase', color: '#C4A35A', fontWeight: 600, marginBottom: 5 }}>
+              Weather
+            </div>
+            {skeletonLoading ? (
+              <div className="skeleton-pulse" style={{ height: 13, borderRadius: 4, background: '#F2D4D7', width: '80%', margin: '0 auto' }} />
+            ) : activeBrief && !activeBriefLoading ? (
+              <>
+                <div style={{ fontFamily: 'var(--font-cormorant), serif', fontSize: 13, fontWeight: 500, color: '#2A2A2A', lineHeight: 1.1 }}>
+                  {activeBrief.weather.tempC}°
+                </div>
+                <div style={{ fontSize: 8.5, color: '#7A7170', marginTop: 3, lineHeight: 1.3, fontStyle: 'italic', fontFamily: 'var(--font-cormorant), serif' }}>
+                  {activeBrief.weather.desc}
+                </div>
+              </>
+            ) : (
+              <div className="skeleton-pulse" style={{ height: 13, borderRadius: 4, background: '#F2D4D7', width: '80%', margin: '0 auto' }} />
+            )}
+            {cardA === 'active' && (
+              <div style={{
+                position: 'absolute', left: '50%', bottom: -3,
+                transform: 'translate(-50%, 50%)',
+                width: 6, height: 6, borderRadius: '50%',
+                background: '#C9848A',
+                animation: 'wtw-pulse 1.4s ease-out infinite',
+              }} />
+            )}
+          </div>
+
+          {/* Card B — Style */}
+          <div style={cardStyle(cardB)}>
+            <div style={{ fontSize: 7, letterSpacing: '0.24em', textTransform: 'uppercase', color: '#C4A35A', fontWeight: 600, marginBottom: 5 }}>
+              Your Style
+            </div>
+            {wtwItem ? (
+              <div style={{ fontFamily: 'var(--font-cormorant), serif', fontSize: 12, fontWeight: 500, color: '#2A2A2A', lineHeight: 1.2 }}>
+                {wtwItem.taste}
+              </div>
+            ) : (
+              <div className="skeleton-pulse" style={{ height: 13, borderRadius: 4, background: '#F2D4D7', width: '75%', margin: '0 auto' }} />
+            )}
+            {cardB === 'active' && (
+              <div style={{
+                position: 'absolute', left: '50%', bottom: -3,
+                transform: 'translate(-50%, 50%)',
+                width: 6, height: 6, borderRadius: '50%',
+                background: '#C9848A',
+                animation: 'wtw-pulse 1.4s ease-out infinite',
+              }} />
+            )}
+          </div>
+
+          {/* Card C — Wardrobe / Frequency */}
+          <div style={cardStyle(cardC)}>
+            <div style={{ fontSize: 7, letterSpacing: '0.24em', textTransform: 'uppercase', color: '#C4A35A', fontWeight: 600, marginBottom: 5 }}>
+              Worn last
+            </div>
+            {wtwItem ? (
+              <>
+                <div style={{ fontFamily: 'var(--font-cormorant), serif', fontSize: 12, fontWeight: 500, color: '#2A2A2A', lineHeight: 1.1 }}>
+                  {wtwItem.name}
+                </div>
+                <div style={{ fontSize: 8.5, color: '#7A7170', marginTop: 3, lineHeight: 1.3, fontStyle: 'italic', fontFamily: 'var(--font-cormorant), serif' }}>
+                  {wtwItem.lastWorn}
+                </div>
+              </>
+            ) : (
+              <div className="skeleton-pulse" style={{ height: 13, borderRadius: 4, background: '#F2D4D7', width: '75%', margin: '0 auto' }} />
+            )}
+            {cardC === 'active' && (
+              <div style={{
+                position: 'absolute', left: '50%', bottom: -3,
+                transform: 'translate(-50%, 50%)',
+                width: 6, height: 6, borderRadius: '50%',
+                background: '#C9848A',
+                animation: 'wtw-pulse 1.4s ease-out infinite',
+              }} />
+            )}
+          </div>
+        </div>
+
+        {/* SVG connector threads */}
+        <div style={{ position: 'relative', height: 32, margin: '0 0', pointerEvents: 'none', zIndex: 1 }}>
+          <svg viewBox="0 0 382 32" preserveAspectRatio="none" style={{ width: '100%', height: '100%', overflow: 'visible' }}>
+            <path
+              d="M 63 0 C 63 16, 191 16, 191 32"
+              fill="none" stroke="#C4A35A" strokeWidth="1" strokeLinecap="round" opacity="0.65"
+              style={{
+                strokeDasharray: 200,
+                strokeDashoffset: threadsGo ? 0 : 200,
+                transition: 'stroke-dashoffset 0.9s ease',
+              }}
+            />
+            <path
+              d="M 191 0 C 191 16, 191 16, 191 32"
+              fill="none" stroke="#C4A35A" strokeWidth="1" strokeLinecap="round" opacity="0.65"
+              style={{
+                strokeDasharray: 200,
+                strokeDashoffset: threadsGo ? 0 : 200,
+                transition: 'stroke-dashoffset 0.9s ease 0.1s',
+              }}
+            />
+            <path
+              d="M 319 0 C 319 16, 191 16, 191 32"
+              fill="none" stroke="#C4A35A" strokeWidth="1" strokeLinecap="round" opacity="0.65"
+              style={{
+                strokeDasharray: 200,
+                strokeDashoffset: threadsGo ? 0 : 200,
+                transition: 'stroke-dashoffset 0.9s ease 0.2s',
+              }}
+            />
+            {threadsGo && (
+              <>
+                <circle cx="63" cy="0" r="1.6" fill="#C4A35A" style={{ animation: 'wtw-slide 1.3s ease-in-out infinite' }} />
+                <circle cx="191" cy="0" r="1.6" fill="#C4A35A" style={{ animation: 'wtw-slide 1.3s ease-in-out infinite', animationDelay: '0.2s' }} />
+                <circle cx="319" cy="0" r="1.6" fill="#C4A35A" style={{ animation: 'wtw-slide 1.3s ease-in-out infinite', animationDelay: '0.4s' }} />
+              </>
+            )}
+          </svg>
+        </div>
+
+        {/* Output outfit card */}
+        <div style={{
+          background: '#FFFFFF',
+          border: '1px solid #EDD9DB',
+          borderRadius: 16,
+          padding: '14px 16px 16px',
+          boxShadow: '0 14px 30px -18px rgba(201,132,138,0.3)',
+          position: 'relative',
+          opacity: outputShow ? 1 : 0,
+          transform: outputShow ? 'translateY(0)' : 'translateY(12px)',
+          transition: 'opacity 0.7s ease 0.1s, transform 0.7s ease 0.1s',
+        }}>
+          {/* Gold top accent line */}
+          <div style={{
+            position: 'absolute', top: -1, left: 18, right: 18, height: 1,
+            background: 'linear-gradient(90deg, transparent, #C4A35A, transparent)',
+          }} />
+
+          <div style={{ fontSize: 8, letterSpacing: '0.32em', textTransform: 'uppercase', color: '#C4A35A', fontWeight: 600, marginBottom: 12 }}>
+            Today&apos;s outfits
+          </div>
+
+          {/* Outfit suggestions */}
+          {(activeBrief && !activeBriefLoading) ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {activeBrief.outfits.map((outfit, i) => (
+                <div
+                  key={i}
+                  style={{
+                    display: 'flex', alignItems: 'flex-start', gap: 10,
+                    opacity: outfitShow[i] ? 1 : 0,
+                    transform: outfitShow[i] ? 'scale(1)' : 'scale(0.85)',
+                    transition: outfitShow[i]
+                      ? 'opacity 0.4s ease, transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)'
+                      : 'none',
+                  }}
+                >
+                  <span style={{
+                    fontFamily: 'var(--font-cormorant), serif',
+                    fontStyle: 'italic', fontSize: 13, color: '#C4A35A',
+                    lineHeight: 1.5, flexShrink: 0,
+                  }}>
+                    {['I', 'II', 'III'][i]}
+                  </span>
+                  <span style={{
+                    fontFamily: 'var(--font-cormorant), serif',
+                    fontStyle: 'italic', fontSize: 16, color: '#2A2A2A', lineHeight: 1.45,
+                  }}>
+                    {outfit}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {[80, 95, 70].map((w, i) => (
+                <div key={i} className="skeleton-pulse" style={{ height: 18, borderRadius: 6, background: '#F2D4D7', width: `${w}%` }} />
+              ))}
+            </div>
+          )}
+
+          {/* Weather tip */}
+          {activeBrief && activeBrief.weatherTip && (
+            <p style={{
+              marginTop: 14, fontSize: 11.5, color: '#7A7170',
+              fontStyle: 'italic', lineHeight: 1.5,
+              paddingTop: 12, borderTop: '1px solid #EDD9DB',
+              opacity: tipShow ? 1 : 0,
+              transition: 'opacity 0.6s ease 0.6s',
+            }}>
+              {activeBrief.weatherTip}
+            </p>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
 
 // ── Landing page ─────────────────────────────────────────────
 function LandingPage() {
@@ -90,12 +454,12 @@ function LandingPage() {
   const [viewDay, setViewDay]             = useState<'today' | 'tomorrow'>('today');
   const [tomorrowLoading, setTomorrowLoading] = useState(false);
   const [briefError, setBriefError]       = useState(false);
+  const [wtwItem, setWtwItem]             = useState<WtwItem | null>(null);
   const coords = useRef<{ lat: number; lon: number } | null>(null);
 
   const brief = viewDay === 'today' ? todayBrief : tomorrowBrief;
 
   useEffect(() => {
-    // Show cached profile photo instantly, then sync from Supabase
     const cached = localStorage.getItem(PROFILE_PHOTO_KEY);
     if (cached) setProfilePhoto(cached);
 
@@ -108,6 +472,14 @@ function LandingPage() {
         }
       })
       .catch(() => { /* keep cached/default */ });
+  }, []);
+
+  // Fetch WTW wardrobe item
+  useEffect(() => {
+    fetch('/api/wardrobe/wtw-item')
+      .then(r => r.json())
+      .then(data => { if (data.success && data.item) setWtwItem(data.item); })
+      .catch(() => { /* silently fail */ });
   }, []);
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -165,7 +537,6 @@ function LandingPage() {
   }
 
   useEffect(() => {
-    // Restore from cache immediately so navigating back feels instant
     const dateStr = today.toDateString();
     const userKey = userId ?? 'anon';
     try {
@@ -175,7 +546,6 @@ function LandingPage() {
       if (cm) setTomorrowBrief(JSON.parse(cm));
     } catch { /* ignore */ }
 
-    // Fetch fresh only if not already cached (geolocation improves accuracy)
     function loadToday() {
       fetchBrief(0)
         .then(data => { if (data) setTodayBrief(data); else setBriefError(true); })
@@ -188,7 +558,7 @@ function LandingPage() {
           coords.current = { lat: pos.coords.latitude, lon: pos.coords.longitude };
           loadToday();
         },
-        () => loadToday(), // permission denied — fetch without coords (wttr.in uses IP)
+        () => loadToday(),
         { timeout: 5000 },
       );
     } else {
@@ -273,7 +643,6 @@ function LandingPage() {
             alt="Polly"
             style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 20%' }}
           />
-          {/* Edit overlay */}
           <div style={{
             position: 'absolute', inset: 0, borderRadius: '50%',
             background: photoUploading ? 'rgba(42,42,42,0.45)' : 'rgba(42,42,42,0)',
@@ -316,135 +685,17 @@ function LandingPage() {
         </p>
       </div>
 
-      {/* CTA */}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '28px 28px 0' }}>
-        <button
-          onClick={() => router.push('/style')}
-          style={{
-            width: '100%', height: 50, borderRadius: 999,
-            background: '#2A2A2A', color: '#FAF7F4',
-            fontFamily: 'var(--font-dm-sans), sans-serif',
-            fontSize: 13, fontWeight: 500,
-            letterSpacing: '0.18em', textTransform: 'uppercase',
-            border: 'none', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-          }}
-        >
-          Open today&apos;s edition
-          <span style={{ fontSize: 14 }}>→</span>
-        </button>
-      </div>
-
-      {/* Weather & outfit brief */}
+      {/* Animated What to Wear section */}
       {!briefError && (
-        <div style={{ margin: '36px 28px 0', borderRadius: 20, border: '1px solid #EDD9DB', background: '#FFFFFF', overflow: 'hidden' }}>
-          {/* Weather bar */}
-          <div style={{
-            background: 'linear-gradient(135deg, #FAF7F4 0%, #FDF0F1 100%)',
-            padding: '18px 20px 16px',
-            borderBottom: '1px solid #EDD9DB',
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                <div style={{ fontSize: 9.5, letterSpacing: '0.28em', textTransform: 'uppercase', color: '#C4A35A', fontWeight: 500 }}>
-                  {brief?.areaName || 'Your Location'} · {viewDay === 'today' ? 'Today' : 'Tomorrow'}
-                </div>
-                {/* Today / Tomorrow toggle */}
-                <div style={{ display: 'flex', gap: 4 }}>
-                  {(['today', 'tomorrow'] as const).map((day) => (
-                    <button
-                      key={day}
-                      onClick={() => {
-                        if (day === 'tomorrow') handleViewTomorrow();
-                        else setViewDay('today');
-                      }}
-                      style={{
-                        fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase',
-                        fontFamily: 'var(--font-dm-sans), sans-serif',
-                        padding: '3px 9px', borderRadius: 999, border: 'none',
-                        cursor: 'pointer',
-                        background: viewDay === day ? '#C9848A' : 'transparent',
-                        color: viewDay === day ? '#FFFFFF' : '#7A7170',
-                        fontWeight: viewDay === day ? 500 : 400,
-                        transition: 'background 0.15s, color 0.15s',
-                      }}
-                    >
-                      {day === 'today' ? 'Today' : 'Tomorrow'}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              {(brief && !(viewDay === 'tomorrow' && tomorrowLoading)) ? (
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                  <span style={{ fontFamily: 'var(--font-cormorant), serif', fontSize: 44, fontWeight: 400, lineHeight: 1, color: '#2A2A2A' }}>
-                    {brief.weather.tempC}°
-                  </span>
-                  <span style={{ fontFamily: 'var(--font-dm-sans), sans-serif', fontSize: 13, color: '#5A5A5A' }}>
-                    {brief.weather.desc}
-                  </span>
-                </div>
-              ) : (
-                <div style={{ height: 44, display: 'flex', alignItems: 'center' }}>
-                  <div className="skeleton-pulse" style={{ width: 80, height: 36, borderRadius: 8, background: '#F2D4D7' }} />
-                </div>
-              )}
-              {(brief && !(viewDay === 'tomorrow' && tomorrowLoading)) && (
-                <div style={{ fontSize: 11, color: '#7A7170', marginTop: 4 }}>
-                  Feels like {brief.weather.feelsC}° · {brief.weather.humidity}% humidity
-                </div>
-              )}
-            </div>
-            <div style={{ fontSize: 46, lineHeight: 1, opacity: (brief && !(viewDay === 'tomorrow' && tomorrowLoading)) ? 1 : 0.3, marginLeft: 12 }}>
-              {(brief && !(viewDay === 'tomorrow' && tomorrowLoading)) ? weatherIcon(brief.weather.desc) : '🌡'}
-            </div>
-          </div>
-
-          {/* Outfit suggestions */}
-          <div style={{ padding: '16px 20px 20px' }}>
-            <div style={{ fontSize: 9.5, letterSpacing: '0.28em', textTransform: 'uppercase', color: '#C4A35A', fontWeight: 500, marginBottom: 14 }}>
-              {viewDay === 'today' ? 'What to wear today' : 'What to wear tomorrow'}
-            </div>
-            {(brief && !(viewDay === 'tomorrow' && tomorrowLoading)) ? (
-              <>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {brief.outfits.map((outfit, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                      <span style={{
-                        fontFamily: 'var(--font-cormorant), serif',
-                        fontStyle: 'italic', fontSize: 13, color: '#C4A35A',
-                        lineHeight: 1.5, flexShrink: 0,
-                      }}>
-                        {['I', 'II', 'III'][i]}
-                      </span>
-                      <span style={{
-                        fontFamily: 'var(--font-cormorant), serif',
-                        fontStyle: 'italic', fontSize: 16, color: '#2A2A2A', lineHeight: 1.45,
-                      }}>
-                        {outfit}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-                {brief.weatherTip && (
-                  <p style={{
-                    marginTop: 14, fontSize: 11.5, color: '#7A7170',
-                    fontStyle: 'italic', lineHeight: 1.5,
-                    paddingTop: 12, borderTop: '1px solid #EDD9DB',
-                  }}>
-                    {brief.weatherTip}
-                  </p>
-                )}
-              </>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {[80, 95, 70].map((w, i) => (
-                  <div key={i} className="skeleton-pulse" style={{ height: 18, borderRadius: 6, background: '#F2D4D7', width: `${w}%` }} />
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+        <WhatToWearSection
+          brief={todayBrief}
+          tomorrowBrief={tomorrowBrief}
+          viewDay={viewDay}
+          tomorrowLoading={tomorrowLoading}
+          handleViewTomorrow={handleViewTomorrow}
+          setViewDay={setViewDay}
+          wtwItem={wtwItem}
+        />
       )}
 
       {/* Section header */}
@@ -545,7 +796,7 @@ function LandingPage() {
           fontFamily: 'var(--font-cormorant), serif',
           fontStyle: 'italic', fontSize: 42, lineHeight: 1, color: '#C4A35A', marginBottom: 6,
         }}>
-          "
+          &ldquo;
         </div>
         <p style={{
           fontFamily: 'var(--font-cormorant), serif',
@@ -577,7 +828,6 @@ export default function Home() {
   const router                             = useRouter();
 
   useEffect(() => {
-    // Show cached splash photo instantly, then fetch latest from Supabase
     const cached = localStorage.getItem(PROFILE_PHOTO_KEY);
     if (cached) setSplashPhotos([cached, ...PHOTOS.slice(1)] as typeof PHOTOS);
     setReady(true);
@@ -593,7 +843,6 @@ export default function Home() {
       .catch(() => { /* keep cached */ });
   }, []);
 
-  // After splash, redirect to sign-in if not authenticated
   useEffect(() => {
     if (!splashComplete || !isLoaded) return;
     if (!isSignedIn) router.replace('/sign-in');
